@@ -1,0 +1,142 @@
+@import "tailwindcss";
+
+/* ==========================================================================
+   设计系统（对齐 ../MathStoryboard/docs/Manimatic-前端架构设计.md §9）
+   品牌基调：学院藏青 + 砖橙，编辑网格风格（1px 分隔线、冷灰白底）
+   ========================================================================== */
+
+@theme {
+  --color-navy-950: #0B1A2C;
+  --color-navy-900: #12263F;
+  --color-navy-800: #173350;
+  --color-navy-700: #1E3A57;
+  --color-navy-500: #3E5A78;
+  --color-navy-300: #8CA3BB;
+
+  --color-brick-700: #9A4A2C;
+  --color-brick-600: #B85C38;
+  --color-brick-500: #CC7050;
+  --color-brick-100: #F6E7E1;
+
+  --color-canvas: #F4F5F7;
+  --color-surface: #FFFFFF;
+  --color-line: #D5DAE1;
+  --color-ink: #4A5A6B;
+  --color-ink-soft: #6B7A89;
+
+  --color-ok-600: #2F7A5A;
+  --color-warn-600: #B8892B;
+  --color-err-600: #B3453C;
+
+  --font-serif-cn: "Noto Serif SC", "Source Han Serif SC", "Songti SC", "SimSun", serif;
+  --font-sans-cn: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
+
+  /* 字号阶梯整体 +10%（用户反馈"整体偏小"）。
+     这里是**显式调整字号令牌**，不是给 html/body 加 zoom：
+     工作台是 h-dvh 全屏布局，zoom 会把 100dvh 一起放大 → 底部溢出、出现滚动条；
+     改字号令牌则只放大文字本身，容器仍按 viewport 计算，不会溢出。
+     行高无需处理：Tailwind 的 --text-*--line-height 是相对倍数，自动跟着字号走。
+     ⚠️ 不要改 --spacing —— 那才是等价的"全局缩放"（v4 里 w-64 / h-9 等数字尺寸都基于它）。 */
+  --text-xs: 0.82rem;
+  --text-sm: 0.96rem;
+  --text-base: 1.1rem;
+  --text-lg: 1.24rem;
+  --text-xl: 1.38rem;
+  --text-2xl: 1.65rem;
+  --text-3xl: 2.06rem;
+  --text-4xl: 2.48rem;
+  --text-5xl: 3.3rem;
+}
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    background: var(--color-canvas);
+    color: var(--color-ink);
+    font-family: var(--font-sans-cn);
+  }
+
+  h1, h2, h3, h4 {
+    font-family: var(--font-serif-cn);
+    color: var(--color-navy-900);
+  }
+
+  /* 数字一律等高 + 加粗。
+     踩过的坑：Georgia 是旧式数字（0/1 矮、6/8 高），混排时高低不齐。 */
+  .tnum {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1;
+  }
+}
+
+/* 细滚动条：三栏里滚动区域多，默认滚动条太抢眼 */
+@layer utilities {
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-line) transparent;
+  }
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: var(--color-line);
+    border-radius: 999px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  /* 流式文字的打字机光标 */
+  .caret::after {
+    content: "";
+    display: inline-block;
+    width: 0.5ch;
+    height: 1.05em;
+    margin-left: 2px;
+    vertical-align: -0.15em;
+    background: var(--color-brick-600);
+    animation: caret-blink 1s steps(2, start) infinite;
+  }
+}
+
+@keyframes caret-blink {
+  to { visibility: hidden; }
+}
+
+/* Radix 弹出层的进出场动画（没装 tailwindcss-animate，手写几个够用） */
+@keyframes overlay-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes dialog-in {
+  from { opacity: 0; transform: translate(-50%, -48%) scale(0.97); }
+  to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+@keyframes sheet-in-left { from { transform: translateX(-100%); } to { transform: translateX(0); } }
+@keyframes sheet-in-right { from { transform: translateX(100%); } to { transform: translateX(0); } }
+@keyframes pop-in { from { opacity: 0; transform: scale(0.97); } to { opacity: 1; transform: scale(1); } }
+@keyframes rise-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
+@layer utilities {
+  .anim-overlay { animation: overlay-in 150ms ease-out; }
+  .anim-dialog { animation: dialog-in 180ms ease-out; }
+  .anim-sheet-left { animation: sheet-in-left 220ms cubic-bezier(0.32, 0.72, 0, 1); }
+  .anim-sheet-right { animation: sheet-in-right 220ms cubic-bezier(0.32, 0.72, 0, 1); }
+  .anim-pop { animation: pop-in 120ms ease-out; }
+  /* 就地展开/淡入（进度卡片展开、产物详情切入等） */
+  .anim-rise { animation: rise-in 180ms ease-out; }
+}
+
+/*
+ * 真全屏背景。
+ * `requestFullscreen` 后浏览器默认是纯黑底；视频是 16:9 而屏幕不一定是，
+ * 两者色差会显出一圈割裂的边。统一成播放器同一档藏青即可。
+ */
+:fullscreen {
+  background: var(--color-navy-950);
+}
+:-webkit-full-screen {
+  background: var(--color-navy-950);
+}

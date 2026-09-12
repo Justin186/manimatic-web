@@ -1,0 +1,33 @@
+# 依赖
+/node_modules
+
+# Next.js 构建产物
+/.next/
+/out/
+next-env.d.ts
+
+# 生产构建
+/build
+
+# TypeScript 增量信息
+*.tsbuildinfo
+
+# 环境变量（可能含密钥，绝不进 git）
+.env*
+!.env.example
+
+# 系统与编辑器
+.DS_Store
+*.pem
+.idea/
+.vscode/
+.codebuddy/
+
+# 调试日志
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Vercel
+.vercel

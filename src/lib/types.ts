@@ -45,6 +45,18 @@ export type Storyboard = {
 
 export type AssistantEvent =
   | { type: "text_delta"; text: string }
+  /**
+   * 模型的**思考过程**增量 —— 不是要显示给用户看的内容，而是"它还在动"的证据。
+   *
+   * 为什么需要它：开了深度思考的模型，正文要等思考走完才开始出字
+   * （实测中转站要 49 秒，`/api/chat` 端到端首个可见字 93 秒）。这几十秒里
+   * 唯一在动的东西就是思考流，不显示出去用户就只能干等，会以为程序死了。
+   *
+   * ⚠️ 后端**默认不发**（`MSB_LLM_SHOW_THINKING=1` 才发）：
+   * 推理内容里可能有模型对用户的判断或本该藏起来的中间结论，
+   * 要不要展示是产品决定。收不到这个事件时 UI 照样工作，只是没有思考预览。
+   */
+  | { type: "thinking_delta"; text: string }
   | { type: "plan"; plan: PlanStep[]; intent: "propose" | "none" }
   | { type: "tool_call"; name: "render_storyboard"; args: { storyboard?: Storyboard; segmentCount: number } }
   | { type: "tool_progress"; step: number; total: number; stage: "prewarm" | "rendering" | "concat" }
@@ -92,6 +104,17 @@ export type Message = {
   error?: string;
   version?: number;
   createdAt: number;
+  /**
+   * 模型的思考过程（拼起来的）。只在真实后端打开 `MSB_LLM_SHOW_THINKING` 时才有。
+   *
+   * 用 preview 字段而不是塞进 text：**它不是回答的一部分**，混进去会让
+   * 「重试时清空 text」这类逻辑顺带把它也清掉，也会污染复制回答的结果。
+   */
+  thinking?: string;
+  /** 是否还在思考（正文已经开始出字、或已结束时为 false） */
+  thinkingLive?: boolean;
+  /** 思考开始时刻，用来算"已思考 N 秒" */
+  thinkingStartedAt?: number;
 };
 
 export type Thread = {

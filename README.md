@@ -22,10 +22,20 @@ Web 优先的**对话式讲解动画创作台**：用自然语言提题 → AI �
 
 | 路由 | 事件 |
 |---|---|
-| `POST /api/chat` | `text_delta` → `plan` → `done` |
+| `POST /api/chat` | `thinking_delta`* → `text_delta`* → `plan` → `done` |
 | `POST /api/render/confirm` | `tool_call` → `tool_progress` → `tool_result`(顺序 1→N) → `tool_done` |
 | `POST /api/render/retry` | 单分镜重渲 → `tool_result` → `tool_done` |
 | `POST /api/storyboard/replace-scene` | 整分镜替换 → `tool_result` → `tool_done` |
+
+`thinking_delta` 是 2026-09-12 新增的（对应 `ThinkingIndicator`）：**开了深度思考的模型，
+正文之前有一段只有思考流的时间**（真链路实测 40~90 秒，首个正文块 +53s）。
+不把它发出来，那段时间界面上什么都不动，用户只会以为程序死了。
+后端**默认不发**（`MSB_LLM_SHOW_THINKING=1` 才发），收不到时 UI 照常工作、只是没有思考预览。
+展开后是**完整思考内容 + 固定高度内部滚动**（不截断）—— 单轮思考可达 2.5 万字。
+
+**多轮上下文**：`/api/chat` 现在带会话历史（后端存，见 `HANDOFF.md` §8.16），
+所以「生成对应视频」「换个讲法」这类追问能被正确理解 —— 前端无需改动，
+消息本来就是按会话发的。
 
 Mock 的事件序列**刻意保留了两个真实特性**，因为它们直接决定前端的设计：
 
@@ -87,6 +97,7 @@ src/
 │   └── workbench/              # 自研核心组件
 │       ├── Workbench.tsx       # 三栏外壳 + 状态机 + SSE 事件分发
 │       ├── ChatStream.tsx      # 对话流（流式滚底，用户上滑后停止跟随）
+│       ├── ThinkingIndicator   # 「正在思考…」（深度思考时唯一的进度反馈）
 │       ├── StoryboardPlanCard  # 大纲卡片（可改顺序/时长/删步骤 + 确认生成）
 │       ├── RenderProgress      # 分镜级进度 + 单分镜重试；出片后收起为一行摘要
 │       ├── VideoPlayer         # ⭐ 三处共用的播放器（画面 + 悬浮控件层）

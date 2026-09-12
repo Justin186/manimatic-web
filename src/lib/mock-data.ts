@@ -25,7 +25,49 @@ export type Canned = {
   segmentDurations: number[];
   final: string;
   intent: "propose" | "none";
+  /**
+   * 模拟"深度思考"的推理过程（可选）。
+   *
+   * 为什么 Mock 也要有：真链路开深度思考时，正文前有 40~90 秒**完全没有正文**，
+   * 只有 `thinking_delta` 在动（见 MathStoryboard/HANDOFF.md §8.12）。
+   * Mock 不模拟这一段的话，前端这块 UI 在本地永远测不到 —— 而它恰恰是
+   * 最需要"看着它在动"的那段时间。
+   */
+  thinking?: string;
 };
+
+/**
+ * Mock 用的思考文本。
+ *
+ * ⚠️ 必须声明在 DERIVATIVE / PYTHAGOREAN **之前**：它们在对象字面量里直接引用
+ * 这几个常量（`thinking: THINKING_DERIVATIVE`），而 const 有暂时性死区 ——
+ * 写在后面的话，模块加载那一刻就 `ReferenceError: Cannot access before initialization`。
+ *
+ * 刻意写得像真的推理过程（短句、自言自语、会推翻自己），因为前端要验证的是
+ * "一屏滚动的小字在动"这件事；写成一段整齐的说明文字反而看不出滚动/截断是否正常。
+ */
+const THINKING_DERIVATIVE =
+  "用户问的是导数……先判断这是概念题还是题目。有「导数」两个字，但没给具体函数，" +
+  "不过例题里常见的是 y=x²，而且前面有个类似的问题就是这么讲的，那就按抛物线来。" +
+  "第一步得先给直觉：导数就是斜率。不能一上来就写公式，学生会不知道在算什么。" +
+  "画图这一步要注意坐标轴得标出来，不然 y=x² 看起来和别的抛物线没区别。" +
+  "动点那段是重点，切线要真的跟着走，右上角还得放个实时斜率 —— " +
+  "等等，这样信息量是不是太多了？先保留，学生反馈说这块反而是最直观的。" +
+  "最后收在 y′=2x 上，并且点明「斜率随 x 线性变化」，把这句和图像对上。" +
+  "四段，大约 4.5 / 9 / 13 / 6 秒，节奏应该是递进的，不要第一段就讲太快。";
+
+const THINKING_PYTHAGOREAN =
+  "用户要勾股定理。这个题的标准证法有面积法和相似三角形，选面积法，更直观。" +
+  "得先确认要不要用 3-4-5 这种特殊值 —— 用具体数字（9、16、25）比用 a² b² c² 抽象符号好懂，" +
+  "但结论必须回到一般形式，否则学生会以为只对 3-4-5 成立。" +
+  "三边各做一个正方形，这是整个证明的核心动作，必须给足时间让眼睛跟上。" +
+  "最后一步把两个小正方形面积加起来，正好等于大的 —— 这一下要停久一点。";
+
+const THINKING_CONCEPT =
+  "这是个概念问题，不是一道要求解的题。判断：不该出动画。" +
+  "硬造一段动画只会显得答非所问，而且用户等得更久。" +
+  "那就直接用文字回答，并且明确告诉他「想要动画就把具体题目发来」—— " +
+  "要把这条路指出来，不然用户会以为这个产品做不了动画。";
 
 export const DERIVATIVE: Canned = {
   key: "derivative",
@@ -50,6 +92,7 @@ export const DERIVATIVE: Canned = {
   segmentDurations: [5.199333, 14.333333, 10.733008, 6.666667],
   final: "/demo/derivative_full.mp4",
   intent: "propose",
+  thinking: THINKING_DERIVATIVE,
 };
 
 export const PYTHAGOREAN: Canned = {
@@ -74,6 +117,7 @@ export const PYTHAGOREAN: Canned = {
   segmentDurations: [4.533333, 9.0, 13.066667, 6.0],
   final: "/demo/pythagorean_full.mp4",
   intent: "propose",
+  thinking: THINKING_PYTHAGOREAN,
 };
 
 /** 纯概念问答：模型判断不该出动画 → intent: none（对应 Q15） */
@@ -89,6 +133,7 @@ function conceptAnswer(q: string): Canned {
     segmentDurations: [],
     final: "",
     intent: "none",
+    thinking: THINKING_CONCEPT,
   };
 }
 

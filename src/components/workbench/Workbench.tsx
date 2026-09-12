@@ -163,7 +163,31 @@ export function Workbench({ threadId }: { threadId: string }) {
     const st = useStore.getState();
     const msg = (st.messages[threadId] ?? []).find((m) => m.id === messageId);
     if (!msg) return;
-    patchMessage(threadId, messageId, { text: msg.text + delta });
+    // 正文开始出字 = 思考阶段结束。放在这里而不是各个事件分支里，
+    // 是为了让"思考中"这个状态只有一个熄火点，不会某条路径忘了关。
+    patchMessage(threadId, messageId, {
+      text: msg.text + delta,
+      ...(msg.thinkingLive ? { thinkingLive: false } : null),
+    });
+  }
+
+  /**
+   * 累积模型的思考过程。
+   *
+   * 只在真实后端开了 `MSB_LLM_SHOW_THINKING` 时才会收到 thinking_delta；
+   * 收不到时这里永远不会被调用，UI 照常工作（只是没有思考预览）。
+   */
+  function appendThinking(messageId: string, delta: string) {
+    const st = useStore.getState();
+    const msg = (st.messages[threadId] ?? []).find((m) => m.id === messageId);
+    if (!msg) return;
+    patchMessage(threadId, messageId, {
+      thinking: (msg.thinking ?? "") + delta,
+      thinkingLive: true,
+      // 记首次出现的时刻：指示器显示的"已思考 N 秒"要用它，
+      // 用 createdAt 会在长会话里算出一个荒唐的大数
+      thinkingStartedAt: msg.thinkingStartedAt ?? Date.now(),
+    });
   }
 
   /* ---------------- 主动作 ---------------- */
@@ -197,6 +221,8 @@ export function Workbench({ threadId }: { threadId: string }) {
           const d = (data ?? {}) as Record<string, unknown>;
           if (name === "text_delta") {
             appendText(asstId, String(d.text ?? ""));
+          } else if (name === "thinking_delta") {
+            appendThinking(asstId, String(d.text ?? ""));
           } else if (name === "plan") {
             const plan = (d.plan ?? []) as PlanStep[];
             const intent = (d.intent ?? "none") as "propose" | "none";
@@ -206,10 +232,11 @@ export function Workbench({ threadId }: { threadId: string }) {
               planState: intent === "propose" ? "pending" : "none",
             });
           } else if (name === "done") {
-            patchMessage(threadId, asstId, { streaming: false });
+            patchMessage(threadId, asstId, { streaming: false, thinkingLive: false });
           } else if (name === "error") {
             patchMessage(threadId, asstId, {
               streaming: false,
+              thinkingLive: false,
               error: String(d.message ?? "生成失败"),
             });
           }
@@ -220,6 +247,7 @@ export function Workbench({ threadId }: { threadId: string }) {
       const aborted = err instanceof DOMException && err.name === "AbortError";
       patchMessage(threadId, asstId, {
         streaming: false,
+        thinkingLive: false,
         error: aborted ? undefined : err instanceof Error ? err.message : String(err),
       });
     } finally {
@@ -269,12 +297,23 @@ export function Workbench({ threadId }: { threadId: string }) {
     const idx = list.findIndex((m) => m.id === messageId);
     const question = [...list.slice(0, idx)].reverse().find((m) => m.role === "user")?.text;
     if (!question) return;
-    patchMessage(threadId, messageId, { text: "", plan: undefined, planState: undefined, streaming: true });
+    // 重新生成要把上一轮的思考一起清掉：不清的话会出现"旧思考 + 新思考"叠在一起，
+    // 而且 thinkingStartedAt 还是上一轮的时间，"已思考 N 秒"会直接算飞。
+    patchMessage(threadId, messageId, {
+      text: "",
+      plan: undefined,
+      planState: undefined,
+      streaming: true,
+      thinking: undefined,
+      thinkingLive: false,
+      thinkingStartedAt: undefined,
+    });
     setBusy(true);
     try {
       await streamChat({ thread_id: threadId, message: question, profile, overrides: { style } }, (n, d) => {
         const dd = (d ?? {}) as Record<string, unknown>;
         if (n === "text_delta") appendText(messageId, String(dd.text ?? ""));
+        else if (n === "thinking_delta") appendThinking(messageId, String(dd.text ?? ""));
         else if (n === "plan") {
           const plan = (dd.plan ?? []) as PlanStep[];
           const intent = (dd.intent ?? "none") as "propose" | "none";
@@ -283,8 +322,11 @@ export function Workbench({ threadId }: { threadId: string }) {
             intent,
             planState: intent === "propose" ? "pending" : "none",
             streaming: false,
+            thinkingLive: false,
           });
-        } else if (n === "done") patchMessage(threadId, messageId, { streaming: false });
+        } else if (n === "done") {
+          patchMessage(threadId, messageId, { streaming: false, thinkingLive: false });
+        }
       });
     } finally {
       setBusy(false);

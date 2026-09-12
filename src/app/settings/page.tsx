@@ -9,6 +9,7 @@ import { Separator } from "@/components/ui/primitives";
 import { useStore } from "@/lib/store";
 import { ROLE_LABEL, type Role, type StyleOverride } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { ModelSettings } from "@/components/workbench/ModelSettings";
 
 const ROLES: Role[] = ["student", "parent", "teacher"];
 const GRADES = ["初中", "高一", "高二", "高三", "大学"];
@@ -132,6 +133,9 @@ export default function SettingsPage() {
           ))}
         </CardContent>
       </Card>
+
+      {/* 模型 API：切换 / 新增模型档案。密钥始终留在后端，这里只传"用哪一档"。 */}
+      <ModelSettings />
 
       <div className="mt-6 flex items-center gap-2">
         <Button asChild>

@@ -19,6 +19,18 @@ export async function POST(req: Request) {
   const canned = rememberCanned(threadId, body.message ?? "");
 
   return sse(async (send) => {
+    // 先模拟"深度思考"：真链路下正文之前有一段只有 thinking_delta 的时间
+    // （实测 40~90 秒，见 MathStoryboard/HANDOFF.md §8.12）。
+    // 少了这一段，前端那块"正在思考…"在本地就永远测不到。
+    // 用 12ms/块（真链路是几秒一个字符的节奏压过来的），演示时不至于真的要等一分钟。
+    if (canned.thinking) {
+      for (const piece of chunk(canned.thinking, 8)) {
+        send("thinking_delta", { text: piece });
+        await sleep(12);
+      }
+      await sleep(180);
+    }
+
     for (const piece of chunk(canned.brief, 10)) {
       send("text_delta", { text: piece });
       await sleep(38);

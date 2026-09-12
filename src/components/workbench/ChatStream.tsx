@@ -6,6 +6,7 @@ import { AlertTriangle, Sparkles } from "lucide-react";
 import { Avatar } from "@/components/ui/fragments";
 import { RenderProgress } from "./RenderProgress";
 import { StoryboardPlanCard } from "./StoryboardPlanCard";
+import { ThinkingIndicator } from "./ThinkingIndicator";
 import { VideoSegmentCard } from "./VideoSegmentCard";
 import type { Message } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -68,6 +69,13 @@ export function ChatStream({
                   <span className="text-xs text-ink-soft">第 {m.version} 版</span>
                 ) : null}
 
+                {/*
+                  思考指示器放在正文**上面**：开启深度思考时它会先出现并一直动，
+                  正文随后才到。正文为空时它就是唯一的反馈来源，
+                  所以两个分支都得渲染它 —— 它自己会按 thinkingLive 决定收起。
+                */}
+                {m.thinking ? <ThinkingIndicator message={m} /> : null}
+
                 {m.text ? (
                   <p
                     className={cn(
@@ -77,7 +85,9 @@ export function ChatStream({
                   >
                     {m.text}
                   </p>
-                ) : m.streaming ? (
+                ) : m.streaming && !m.thinking ? (
+                  // 没有思考内容时才显示那个孤立的光标：有思考指示器时它已经在动了，
+                  // 再挂一个空光标只是重复噪音。
                   <p className="text-sm text-ink-soft">
                     <span className="caret" />
                   </p>

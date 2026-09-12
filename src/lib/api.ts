@@ -32,6 +32,95 @@ async function post(path: string, body: unknown, onEvent: SSEHandler, signal?: A
   await readSSE(res, onEvent);
 }
 
+/* ---------------- LLM 配置（设置页） ----------------
+ *
+ * 这几个是普通 JSON 接口，不是 SSE —— 只有生成/渲染那条链是流式的。
+ *
+ * ⚠️ 密钥**只进不出**：能提交，但后端从不回传（只回 `has_key`）。
+ *    所以别在 UI 上试着"回显"密钥，它压根不在响应里。
+ */
+
+/** 一个模型档案。注意没有 api_key，只有 has_key。 */
+export type LlmProfile = {
+  name: string;
+  active: boolean;
+  provider: string;
+  base_url: string;
+  model: string;
+  has_key: boolean;
+  max_tokens: number | null;
+  temperature: number | null;
+  json_mode: boolean;
+  headers: string[];
+  note: string;
+};
+
+export type LlmProfilesResponse = {
+  profiles: LlmProfile[];
+  active: string;
+  /** true = 配置还是旧版扁平形态（没有 profiles），这时设置页只展示、不改结构 */
+  legacy: boolean;
+  path: string;
+  /** **真正生效**的值 —— 与"文件里写的"不一致时，以这个为准 */
+  effective: {
+    profile?: string;
+    model?: string;
+    provider?: string;
+    max_tokens?: number;
+    has_key?: boolean;
+    error?: string;
+  };
+};
+
+async function json<T>(path: string, body?: unknown): Promise<T> {
+  const res = await fetch(url(path), {
+    method: body === undefined ? "GET" : "POST",
+    headers: { "Content-Type": "application/json" },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    throw new Error(`${path} 返回 ${res.status}${detail ? `：${detail.slice(0, 200)}` : ""}`);
+  }
+  return (await res.json()) as T;
+}
+
+export function fetchLlmProfiles() {
+  return json<LlmProfilesResponse>("/api/llm/profiles");
+}
+
+export type SwitchResult = {
+  ok: boolean;
+  error?: string;
+  model?: string;
+  active?: string;
+  available?: string[];
+};
+
+export function setLlmActive(profile: string) {
+  return json<SwitchResult>("/api/llm/active", { profile });
+}
+
+export type SaveLlmProfileRequest = {
+  name: string;
+  /** 非空 = 改这一档；空 = 新增 */
+  profile?: string;
+  provider?: string;
+  base_url?: string;
+  model?: string;
+  /** 留空 = **保持原密钥不变**（前端拿不到旧密钥，留空绝不能被当成"清空"） */
+  api_key?: string;
+  max_tokens?: number;
+  temperature?: number;
+  json_mode?: boolean;
+  headers?: Record<string, string>;
+  note?: string;
+};
+
+export function saveLlmProfile(req: SaveLlmProfileRequest) {
+  return json<{ ok: boolean; error?: string; name?: string }>("/api/llm/profile", req);
+}
+
 export type ChatRequest = {
   thread_id: string;
   message: string;

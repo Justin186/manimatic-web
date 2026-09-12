@@ -1,0 +1,27 @@
+# ---- 行尾统一 ----
+# 仓库内存 LF，检出到任何平台也是 LF。
+# 不加这个文件时，Windows 上 core.autocrlf=true 会让每次 git add 都警告
+# "LF will be replaced by CRLF"，且 macOS/Linux 协作者会看到全文件 diff。
+* text=auto eol=lf
+
+# Windows 批处理必须 CRLF，显式例外（本仓库目前没有，先立规矩免得以后踩）
+*.bat  text eol=crlf
+*.cmd  text eol=crlf
+
+# ---- 二进制 ----
+# 不做行尾转换，也不参与文本 diff / merge
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.ico   binary
+*.webp  binary
+*.avif  binary
+*.woff  binary
+*.woff2 binary
+*.ttf   binary
+*.otf   binary
+*.eot   binary
+*.mp4   binary
+*.webm  binary
+*.pdf   binary

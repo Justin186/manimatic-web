@@ -67,7 +67,6 @@ export function Workbench({ threadId }: { threadId?: string }) {
   const removeThreadsLocal = useStore((s) => s.removeThreadsLocal);
 
   const [retrying, setRetrying] = useState<number | null>(null);
-  const [simulateFailure, setSimulateFailure] = useState(false);
   /** 会话在后端的保留天数（/api/threads 带回来的）。0 = 后端不清理 */
   const [ttlDays, setTtlDays] = useState(0);
   /** 待确认删除的会话 id（null = 没在确认）。确认框归这里管，侧栏只负责发起 */
@@ -483,7 +482,7 @@ export function Workbench({ threadId }: { threadId?: string }) {
     });
     try {
       await confirmRender(
-        { thread_id: tid, message_id: messageId, plan, simulateFailure },
+        { thread_id: tid, message_id: messageId, plan },
         (n, d) => handleEvent(tid, messageId, n, d),
       );
     } catch (err) {
@@ -662,8 +661,6 @@ export function Workbench({ threadId }: { threadId?: string }) {
       busy={busy}
       onSend={send}
       onAbort={() => threadId && abortStream(threadId)}
-      simulateFailure={simulateFailure}
-      onSimulateFailureChange={setSimulateFailure}
     />
   );
 

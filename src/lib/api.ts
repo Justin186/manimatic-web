@@ -166,8 +166,9 @@ export type ConfirmRequest = {
   message_id: string;
   plan: PlanStep[];
   storyboard?: Storyboard;
-  /** 仅 Mock 模式需要：让第 3 个分镜渲染失败，用来演示单分镜重试。真后端忽略此字段。 */
-  simulateFailure?: boolean;
+  // 这里曾有一个 `simulateFailure`（让第 3 个分镜失败，演示单分镜重试）。
+  // 界面上那个开关已删除，前端不再发它 —— 但 mock 与后端接口仍然认这个字段，
+  // 要演示那条交互时手工构造一次请求即可（见 HANDOFF §8.23）。
 };
 
 /** 确认生成：tool_call → tool_progress* → tool_result* → tool_done */

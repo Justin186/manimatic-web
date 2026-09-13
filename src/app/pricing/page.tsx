@@ -43,7 +43,7 @@ export default function PricingPage() {
         <span className="grid h-8 w-8 place-items-center rounded bg-navy-900 text-white">
           <Sparkles className="h-4 w-4" />
         </span>
-        <span className="font-serif-cn text-base font-semibold text-navy-900">Manimatic</span>
+        <span className="font-serif-cn text-base font-semibold text-navy-900">智绘课堂</span>
       </Link>
 
       <div className="text-center">

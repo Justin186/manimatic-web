@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Manimatic · 把一道题讲成一段动画",
+  title: "智绘课堂 · 把知识点讲成一段动画",
   description:
-    "用自然语言提题，AI 先讲清楚思路、给出分镜大纲，确认后逐分镜渲染成讲解动画。",
+    "用自然语言描述一个知识点或一道题，AI 先讲清楚思路、给出分镜大纲，确认后逐分镜渲染成讲解动画。",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

@@ -51,9 +51,12 @@ export function ChatStream({
   return (
     <div
       onScroll={onScroll}
-      className="scrollbar-thin flex-1 overflow-y-auto px-4 py-5 md:px-8"
+      // 底部留白归零：任何一点灰（哪怕 4px）夹在白色卡片和白色输入框之间都会被看见。
+      // 顶部留白保留（对话从上面开始时需要它）。
+      className="scrollbar-thin flex-1 overflow-y-auto px-4 pt-5 md:px-8"
     >
       <div className="mx-auto flex max-w-[53rem] flex-col gap-5">
+        {/* 空会话不会走到这里：那种情况由 Workbench 把输入框直接摆到正中间 */}
         {messages.map((m) =>
           m.role === "user" ? (
             <div key={m.id} className="flex justify-end">
@@ -136,8 +139,13 @@ export function ChatStream({
             </div>
           ),
         )}
-        <div ref={endRef} />
       </div>
+      {/*
+        滚动锚点必须放在间隔容器**外面**：放在里面时 `gap-5` 会在它前面多算 20px，
+        于是最后一条内容和输入框之间就凭空多出一截空白（用户圈出来的那条缝）。
+        它高度为 0，放里放外都能滚到，所以移出来没有任何副作用。
+      */}
+      <div ref={endRef} />
     </div>
   );
 }

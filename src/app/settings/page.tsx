@@ -7,18 +7,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/primitives";
 import { useStore } from "@/lib/store";
-import { ROLE_LABEL, type Role, type StyleOverride } from "@/lib/types";
+import { ROLE_LABEL, STYLE_OPTIONS, type Role } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { ModelSettings } from "@/components/workbench/ModelSettings";
 
 const ROLES: Role[] = ["student", "parent", "teacher"];
 const GRADES = ["初中", "高一", "高二", "高三", "大学"];
 const SUBJECTS = ["数学", "物理", "化学"];
-const STYLES: { value: StyleOverride; label: string; hint: string }[] = [
-  { value: "concise", label: "精简", hint: "只讲关键步骤" },
-  { value: "detailed", label: "详细", hint: "逐步推导（默认）" },
-  { value: "fun", label: "活泼", hint: "口语化、多用类比" },
-];
 
 export default function SettingsPage() {
   const profile = useStore((s) => s.profile);
@@ -38,7 +33,7 @@ export default function SettingsPage() {
         <span className="grid h-8 w-8 place-items-center rounded bg-navy-900 text-white">
           <Sparkles className="h-4 w-4" />
         </span>
-        <span className="font-serif-cn text-base font-semibold text-navy-900">Manimatic</span>
+        <span className="font-serif-cn text-base font-semibold text-navy-900">智绘课堂</span>
       </Link>
 
       <h1 className="font-serif-cn text-2xl text-navy-900">画像与偏好</h1>
@@ -112,11 +107,11 @@ export default function SettingsPage() {
         <CardHeader>
           <CardTitle>讲解风格</CardTitle>
           <CardDescription>
-            影响 AI 讲解的措辞与详略。工作台底部不再单独放切换条，统一在这里改
+            影响 AI 讲解的措辞与详略。工作台里不再放切换条，统一在这里改
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-wrap gap-2">
-          {STYLES.map((s) => (
+          {STYLE_OPTIONS.map((s) => (
             <button
               key={s.value}
               onClick={() => setStyle(s.value)}

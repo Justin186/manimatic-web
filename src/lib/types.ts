@@ -122,6 +122,10 @@ export type Thread = {
   title: string;
   subtitle?: string;
   updatedAt: number;
+  /** 置顶：永远排在列表最前。排序由服务端定（本地改完也照同一规则重排） */
+  pinned?: boolean;
+  /** 已开启分享（侧栏只据此显示一个标记，链接本身不在列表里） */
+  shared?: boolean;
 };
 
 export const ROLE_LABEL: Record<Role, string> = {
@@ -129,3 +133,15 @@ export const ROLE_LABEL: Record<Role, string> = {
   parent: "家长",
   teacher: "教师",
 };
+
+/**
+ * 讲解风格的可选项。
+ *
+ * ⚠️ 只此一份：设置页和工作台输入框都要用它，各写一份迟早漂移
+ * （用户会在两个地方看到同一档叫不同的名字）。
+ */
+export const STYLE_OPTIONS: { value: StyleOverride; label: string; hint: string }[] = [
+  { value: "concise", label: "精简", hint: "只讲关键步骤" },
+  { value: "detailed", label: "详细", hint: "逐步推导（默认）" },
+  { value: "fun", label: "活泼", hint: "口语化、多用类比" },
+];

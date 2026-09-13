@@ -1,5 +1,5 @@
 import { readSSE, type SSEHandler } from "./sse";
-import type { PlanStep, Profile, Storyboard, StyleOverride } from "./types";
+import type { PlanStep, Profile, RenderState, Storyboard, StyleOverride } from "./types";
 
 /**
  * 后端切换开关。
@@ -12,6 +12,19 @@ import type { PlanStep, Profile, Storyboard, StyleOverride } from "./types";
  * 也就是说：**接真后端不用改任何组件**，只改这一个环境变量。
  */
 export const USE_MOCK = process.env.NEXT_PUBLIC_USE_MOCK !== "false";
+
+/**
+ * 演示模式开关（`NEXT_PUBLIC_DEMO_MODE=true` 才开）。
+ *
+ * 开了才会往 store 里塞预置的示例会话（`SEED_THREADS`）。
+ * **默认关**：后端没起来的时候不该显示一批假数据 —— 那会让人以为系统里真有历史
+ * 记录（实测既能骗到演示现场的评委，也能骗到正在排查问题的自己）。
+ *
+ * ⚠️ 它和 USE_MOCK 是两件事：MOCK 决定"请求打到哪"，DEMO_MODE 决定"没数据时要不要
+ *    拿预置内容顶上"。所以两者可以自由组合，也允许都不开（就是干净的空状态）。
+ */
+export const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
+
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "";
 
 function url(path: string) {
@@ -72,9 +85,15 @@ export type LlmProfilesResponse = {
   };
 };
 
-async function json<T>(path: string, body?: unknown): Promise<T> {
+async function json<T>(
+  path: string,
+  body?: unknown,
+  method?: "GET" | "POST" | "PATCH" | "DELETE",
+): Promise<T> {
   const res = await fetch(url(path), {
-    method: body === undefined ? "GET" : "POST",
+    // 不传 method 时按老规矩推：有 body 就是 POST，没有就是 GET。
+    // （会话的改/删要 PATCH / DELETE，所以这里开了个后门。）
+    method: method ?? (body === undefined ? "GET" : "POST"),
     headers: { "Content-Type": "application/json" },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
@@ -126,6 +145,15 @@ export type ChatRequest = {
   message: string;
   profile: Profile;
   overrides?: { style?: StyleOverride; targetDurationSec?: number };
+  /**
+   * 前端自己生成的消息 id（Workbench 里的 `uid("ma")` / `uid("mu")`）。
+   *
+   * 发给后端**只为让它落盘**：刷新后前端要靠这个 id 回头去找这条消息的分镜与渲染产物
+   * （后端用 `task_name(thread_id, message_id)` 定位产物目录）。
+   * 不传也能跑（后端会自己生成一个），但那条消息刷新之后就与自己的产物对不上号了。
+   */
+  message_id?: string;
+  user_message_id?: string;
 };
 
 /** 对话：text_delta → plan → done */
@@ -170,4 +198,101 @@ export type ReplaceSceneRequest = {
 /** 整分镜替换（对应 Q16：不用文本 patch，让模型重新输出一个完整分镜） */
 export function replaceScene(req: ReplaceSceneRequest, onEvent: SSEHandler, signal?: AbortSignal) {
   return post("/api/storyboard/replace-scene", req, onEvent, signal);
+}
+
+/* ---------------- 会话的改 / 删 / 分享 ----------------
+ *
+ * 这三样存的是**用户改出来的属性**（后端落在 `_tasks/sessions/<t>.json`），
+ * 与渲染产物完全分开 —— 所以它们不会因为重新渲染而被冲掉。
+ */
+
+export type ThreadMutationResult = {
+  ok: boolean;
+  error?: string;
+  title?: string;
+  pinned?: boolean;
+  /** 删掉的文件/目录个数（DELETE 用），用来给用户一句实在的回执 */
+  removed?: number;
+  /** 分享 token（POST 分享用） */
+  slug?: string;
+};
+
+export function patchThread(threadId: string, patch: { title?: string; pinned?: boolean }) {
+  return json<ThreadMutationResult>(
+    `/api/threads/${encodeURIComponent(threadId)}`,
+    patch,
+    "PATCH",
+  );
+}
+
+/** 删除会话。**连它的全部渲染产物一起删**（成片、分段、增量缓存），不可撤销。 */
+export function deleteThread(threadId: string) {
+  return json<ThreadMutationResult>(
+    `/api/threads/${encodeURIComponent(threadId)}`,
+    undefined,
+    "DELETE",
+  );
+}
+
+/**
+ * 开 / 关分享。打开时后端返回一个 slug。
+ *
+ * ⚠️ 后端**只回 slug，不回完整链接** —— 它知道自己的地址（media 前缀挂在上面），
+ *    但不知道前端跑在哪个端口。拼出一个打不开的链接，是那种很难被当成 bug
+ *    看出来的错，所以链接由前端拿 `location.origin` 自己拼。
+ */
+export function setThreadShare(threadId: string, on: boolean) {
+  return json<ThreadMutationResult>(
+    `/api/threads/${encodeURIComponent(threadId)}/share`,
+    { on },
+  );
+}
+
+/* ---------------- 会话恢复（刷新后把工作台拼回来） ----------------
+ *
+ * 数据全部来自后端 `output/_tasks/`（见 ../MathStoryboard/api/routes/threads.py），
+ * 前端**不做任何本地持久化** —— 这样换浏览器、换机器看到的都是同一批会话。
+ *
+ * ⚠️ 所有时间戳都是**毫秒**：后端在接口层已经转好了。前端别再乘 1000，
+ *    漏一处就会在界面上显示成"1970 年前"。
+ */
+
+/** 会话摘要（GET /api/threads 的单项）。 */
+export type ThreadSummary = {
+  id: string;
+  title: string;
+  subtitle?: string;
+  updatedAt: number;
+  pinned?: boolean;
+  shared?: boolean;
+};
+
+/** 会话里的一条消息，可直接并入 zustand 的 messages。 */
+export type ThreadMessage = {
+  /** 前端当初生成、并被后端落盘的那个 id —— confirm 靠它定位产物 */
+  id: string;
+  role: "user" | "assistant";
+  text: string;
+  createdAt: number;
+  intent?: "propose" | "none";
+  plan?: PlanStep[];
+  planState?: "none" | "pending" | "confirmed";
+  /** 由后端扫盘重建：每段的状态/时长/地址，以及整条成片 */
+  render?: RenderState;
+};
+
+export type ThreadsResponse = {
+  threads: ThreadSummary[];
+  /** 会话保留天数；超过它没动过的会被后端清掉（0 = 不清理）。界面要明示 */
+  ttl_days: number;
+};
+
+export function fetchThreads() {
+  return json<ThreadsResponse>("/api/threads");
+}
+
+export function fetchThreadDetail(threadId: string) {
+  return json<{ thread_id: string; messages: ThreadMessage[] }>(
+    `/api/threads/${encodeURIComponent(threadId)}`,
+  );
 }

@@ -19,6 +19,11 @@ type Props = {
   title: string;
   navOpen: boolean;
   previewOpen: boolean;
+  /**
+   * 产物栏此刻有没有东西可看。没有就把按钮一起收起来 ——
+   * 一个点了什么都不发生的按钮，比没有这个按钮更让人困惑。
+   */
+  showPreview?: boolean;
   onToggleNav: () => void;
   onTogglePreview: () => void;
   onNewThread: () => void;
@@ -28,6 +33,7 @@ export function TopBar({
   title,
   navOpen,
   previewOpen,
+  showPreview = true,
   onToggleNav,
   onTogglePreview,
   onNewThread,
@@ -48,7 +54,7 @@ export function TopBar({
           <Sparkles className="h-4 w-4" />
         </span>
         <span className="hidden font-serif-cn text-base font-semibold text-navy-900 sm:inline">
-          Manimatic
+          智绘课堂
         </span>
       </Link>
 
@@ -64,16 +70,18 @@ export function TopBar({
       </Button>
 
       <div className="ml-auto flex items-center gap-1 md:ml-0">
-        <Tooltip label={previewOpen ? "收起预览栏" : "展开预览栏"}>
-          <button
-            onClick={onTogglePreview}
-            aria-label="切换预览栏"
-            className="grid h-10 w-10 place-items-center rounded-md text-ink-soft transition-colors hover:bg-canvas hover:text-navy-900 data-[open=true]:bg-canvas"
-            data-open={previewOpen}
-          >
-            <PanelRight className="h-4.5 w-4.5" />
-          </button>
-        </Tooltip>
+        {showPreview ? (
+          <Tooltip label={previewOpen ? "收起预览栏" : "展开预览栏"}>
+            <button
+              onClick={onTogglePreview}
+              aria-label="切换预览栏"
+              className="grid h-10 w-10 place-items-center rounded-md text-ink-soft transition-colors hover:bg-canvas hover:text-navy-900 data-[open=true]:bg-canvas"
+              data-open={previewOpen}
+            >
+              <PanelRight className="h-4.5 w-4.5" />
+            </button>
+          </Tooltip>
+        ) : null}
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

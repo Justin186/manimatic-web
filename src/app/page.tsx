@@ -31,7 +31,7 @@ export default function LandingPage() {
           <span className="grid h-8 w-8 place-items-center rounded bg-navy-900 text-white">
             <Sparkles className="h-4 w-4" />
           </span>
-          <span className="font-serif-cn text-base font-semibold text-navy-900">Manimatic</span>
+          <span className="font-serif-cn text-base font-semibold text-navy-900">智绘课堂</span>
           <nav className="ml-auto flex items-center gap-1">
             <Button variant="ghost" size="sm" asChild>
               <Link href="/pricing">套餐</Link>
@@ -54,12 +54,12 @@ export default function LandingPage() {
               数学 · 讲解动画
             </Badge>
             <h1 className="max-w-3xl font-serif-cn text-4xl leading-tight text-navy-900 md:text-5xl">
-              把一道题，讲成一段
+              把知识点，讲成一段
               <span className="text-brick-600"> 看得懂 </span>
               的动画
             </h1>
             <p className="mt-5 max-w-2xl text-base leading-relaxed text-ink md:text-lg">
-              输入题目，AI 先讲清思路、给出分镜大纲，你确认后逐分镜渲染成片。
+              输入一个知识点或一道题，AI 先讲清思路、给出分镜大纲，你确认后逐分镜渲染成片。
               不满意就说一句，只改那一个分镜。
             </p>
 
@@ -152,7 +152,7 @@ export default function LandingPage() {
 
       <footer className="border-t border-line bg-surface">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-3 px-4 py-6 text-xs text-ink-soft">
-          <span>Manimatic</span>
+          <span>智绘课堂</span>
           <span className="text-line">·</span>
           <span>渲染由 Manim 确定性生成，大模型不写一行动画代码</span>
           <span className="ml-auto">2026 实训项目</span>

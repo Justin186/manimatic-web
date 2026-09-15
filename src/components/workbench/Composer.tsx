@@ -62,7 +62,7 @@ export function Composer({ busy, onSend, onAbort, compact }: Props) {
   // 外层只做两件事：**居中**（items-center）与**留白**。
   // 它横跨整个中栏，所以不该画任何东西 —— 一旦沾上底色，看着就像"凭空多出一层容器"。
   //
-  // ⚠️ **顶部 padding 必须是 0**。它曾经是 8px，而页面底色 #F4F5F7 与输入框的白色
+  // ⚠️ **顶部 padding 必须是 0**。它曾经是 8px，而页面底色与输入框的白色
   // 明度太接近，那 8px 夹在白色视频卡片和白色输入框之间时不像留白、倒像一块贴错位置
   // 的面板（用户为此圈了好几次）。底部留白保留，输入框不该贴在窗口最下沿。
   //
@@ -73,19 +73,15 @@ export function Composer({ busy, onSend, onAbort, compact }: Props) {
       {/* 与对话流同宽并居中：左右栏收起/展开时输入框长度保持不变 */}
       <div
         className={cn(
-          "flex w-full max-w-[53rem] flex-col border bg-surface transition-all",
+          "t-tx flex w-full max-w-[53rem] flex-col border bg-surface",
           // 圆角与投影：两档都带投影（对话中那一档更弱，别跟正文抢注意力），
-          // 聚焦时加深 —— 对应豆包那种"常态柔和浮起、聚焦描边变深"的观感。
-          //
-          // 投影**向四周自然扩散**（不加负 spread 去限制方向）。曾经担心"向上会脏到
-          // 最后一条内容"，其实不会：输入框在 DOM 里排在对话流之后，它的影子画在
-          // 内容之上 —— 那正是浮起来该有的样子，不是污渍。
+          // 聚焦时描边变品牌色、投影加深 —— "常态柔和浮起、聚焦时收紧"的观感。
           // 下内边距两档一致（`pb-2` = 8px）：它同时决定**发送按钮离底边多远**
           // 和**胶囊离底边多远**（后者再 +4px），所以两档写一样才不会被看成两个东西
           compact
-            ? "rounded-2xl px-4 pt-3.5 pb-2 shadow-[0_4px_20px_rgba(18,38,63,0.10)] focus-within:shadow-[0_6px_26px_rgba(18,38,63,0.15)]"
-            : "rounded-xl px-4 pt-2.5 pb-2 shadow-[0_3px_14px_rgba(18,38,63,0.08)] focus-within:shadow-[0_5px_20px_rgba(18,38,63,0.13)]",
-          busy ? "border-brick-600/40" : "border-line focus-within:border-brick-600",
+            ? "rounded-card px-4 pt-3.5 pb-2 shadow-raised focus-within:shadow-pop"
+            : "rounded-inner px-4 pt-2.5 pb-2 shadow-card focus-within:shadow-raised",
+          busy ? "border-accent/40" : "border-border focus-within:border-accent",
         )}
       >
         <textarea
@@ -100,11 +96,10 @@ export function Composer({ busy, onSend, onAbort, compact }: Props) {
               submit();
             }
           }}
-          placeholder={
-            compact ? "输入一个知识点或一道题" : "继续提问，或说说要改哪里"
-          }
+          placeholder={compact ? "输入一个知识点或一道题" : "继续提问，或说说要改哪里"}
           className={cn(
-            "max-h-60 w-full resize-none bg-transparent text-base leading-7 text-navy-900 outline-none placeholder:text-ink-soft/70 disabled:opacity-60",
+            "max-h-60 w-full resize-none bg-transparent text-base leading-7 text-fg outline-none",
+            "placeholder:text-fg-subtle disabled:opacity-60",
             compact ? "min-h-[2.5rem]" : "min-h-[2.25rem]",
           )}
         />
@@ -128,16 +123,16 @@ export function Composer({ busy, onSend, onAbort, compact }: Props) {
         <div className="mt-3 flex items-center justify-between gap-2">
           <ModelPicker disabled={busy} />
           {busy ? (
-            <Button size="icon" variant="subtle" onClick={onAbort} aria-label="停止生成">
+            <Button size="icon" variant="soft" onClick={onAbort} aria-label="停止生成">
               <Loader2 className="h-4 w-4 animate-spin" />
             </Button>
           ) : (
             <Button
               size="icon"
+              variant="grad"
               onClick={submit}
               disabled={!value.trim()}
               aria-label="发送"
-              className="bg-navy-900"
             >
               <ArrowUp className="h-4 w-4" />
             </Button>
@@ -167,7 +162,10 @@ export function Composer({ busy, onSend, onAbort, compact }: Props) {
             <button
               key={p}
               onClick={() => setValue(p)}
-              className="rounded-full border border-line bg-surface px-3.5 py-1.5 text-xs text-ink shadow-[0_1px_2px_rgba(18,38,63,0.04)] transition-colors hover:border-brick-600/50 hover:bg-brick-100/50 hover:text-navy-900"
+              className={cn(
+                "t-tx rounded-pill border border-border bg-surface px-3.5 py-1.5 text-xs text-fg shadow-card",
+                "hover:border-accent hover:bg-accent-soft hover:text-accent",
+              )}
             >
               {p}
             </button>
@@ -183,7 +181,7 @@ export function Composer({ busy, onSend, onAbort, compact }: Props) {
       */}
       <div
         className={cn(
-          "mt-1.5 w-full max-w-[53rem] text-xs text-ink-soft",
+          "mt-1.5 w-full max-w-[53rem] text-xs text-fg-subtle",
           // 居中摆输入框时（空会话）只留输入框本身
           compact && "hidden",
         )}

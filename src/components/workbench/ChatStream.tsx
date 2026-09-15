@@ -56,20 +56,29 @@ export function ChatStream({
       className="scrollbar-thin flex-1 overflow-y-auto px-4 pt-5 md:px-8"
     >
       <div className="mx-auto flex max-w-[53rem] flex-col gap-5">
-        {/* 空会话不会走到这里：那种情况由 Workbench 把输入框直接摆到正中间 */}
+        {/* 空会话不会走到这里：那种情况由 Workbench 把输入框直接摆到中间 */}
         {messages.map((m) =>
           m.role === "user" ? (
             <div key={m.id} className="flex justify-end">
-              <div className="max-w-[85%] rounded-2xl rounded-br-sm bg-navy-900 px-4 py-2.5 text-sm leading-relaxed text-white">
+              {/*
+                气泡形状 = `rounded-card` + `rounded-br-[5px]`：
+                右下角收成一个小直角，像"尾巴"一样指向说话人。
+                ⚠️ 不要改成完整胶囊（`rounded-pill`）—— 胶囊会把尾巴吃掉，
+                左右两边的气泡就只剩"对齐方向"这一个区分，一眼扫过去容易认错谁在说话。
+
+                ⚠️ 也不要给气泡加描边：浅填充本身已经能从页面底和白卡片里分出来，
+                再加一圈描边就成了"描边 + 填充"的双重标注，显重。
+              */}
+              <div className="max-w-[85%] rounded-card rounded-br-[5px] bg-solid px-4 py-2.5 text-sm leading-relaxed text-solid-fg">
                 {m.text}
               </div>
             </div>
           ) : (
             <div key={m.id} className="flex gap-3">
-              <Avatar fallback={<Sparkles className="h-4 w-4" />} className="bg-brick-600" />
+              <Avatar fallback={<Sparkles className="h-4 w-4" />} />
               <div className="min-w-0 flex-1 space-y-3">
                 {m.version ? (
-                  <span className="text-xs text-ink-soft">第 {m.version} 版</span>
+                  <span className="text-xs text-fg-subtle">第 {m.version} 版</span>
                 ) : null}
 
                 {/*
@@ -82,7 +91,7 @@ export function ChatStream({
                 {m.text ? (
                   <p
                     className={cn(
-                      "whitespace-pre-wrap text-sm leading-7 text-navy-900",
+                      "whitespace-pre-wrap text-sm leading-7 text-fg",
                       m.streaming && "caret",
                     )}
                   >
@@ -91,13 +100,13 @@ export function ChatStream({
                 ) : m.streaming && !m.thinking ? (
                   // 没有思考内容时才显示那个孤立的光标：有思考指示器时它已经在动了，
                   // 再挂一个空光标只是重复噪音。
-                  <p className="text-sm text-ink-soft">
+                  <p className="text-sm text-fg-subtle">
                     <span className="caret" />
                   </p>
                 ) : null}
 
                 {m.error && (
-                  <p className="flex items-start gap-1.5 rounded-md bg-err-600/5 px-3 py-2 text-xs text-err-600">
+                  <p className="flex items-start gap-1.5 rounded-inner bg-err-soft px-3 py-2 text-xs text-err">
                     <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                     {m.error}
                   </p>

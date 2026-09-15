@@ -4,14 +4,15 @@ import { useState } from "react";
 import { AlertTriangle, Check, ChevronDown, Loader2, RefreshCw } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { IconButton } from "@/components/ui/icon-button";
 import { Progress } from "@/components/ui/progress";
-import { Badge } from "@/components/ui/primitives";
+import { Badge, type BadgeTone } from "@/components/ui/primitives";
 import type { RenderState, SceneStatus } from "@/lib/types";
 import { cn, formatDuration } from "@/lib/utils";
 
-const STATUS_META: Record<SceneStatus, { label: string; tone: "neutral" | "info" | "ok" | "err" }> = {
+const STATUS_META: Record<SceneStatus, { label: string; tone: BadgeTone }> = {
   queued: { label: "排队中", tone: "neutral" },
-  rendering: { label: "渲染中", tone: "info" },
+  rendering: { label: "渲染中", tone: "accent" },
   done: { label: "已完成", tone: "ok" },
   error: { label: "失败", tone: "err" },
 };
@@ -78,16 +79,19 @@ export function RenderProgress({ render, onRetry, onRevise, retrying }: Props) {
         type="button"
         onClick={() => setExpandedByUser(true)}
         aria-expanded={false}
-        className="flex w-full items-center gap-2 rounded-lg border border-line bg-surface px-3 py-2 text-left transition-colors hover:border-navy-900/20 hover:bg-canvas/60"
+        className={cn(
+          "t-tx flex w-full items-center gap-2 rounded-inner border border-border bg-surface px-3 py-2 text-left shadow-card",
+          "hover:border-accent/40 hover:bg-surface-2",
+        )}
       >
-        <Check className="h-3.5 w-3.5 shrink-0 text-ok-600" />
-        <span className="text-sm text-navy-900">
+        <Check className="h-3.5 w-3.5 shrink-0 text-ok" />
+        <span className="text-sm text-fg">
           已出片 · {total} 个分镜
           {totalDuration > 0 && (
-            <span className="tnum text-ink-soft"> · {formatDuration(totalDuration)}</span>
+            <span className="tnum text-fg-muted"> · {formatDuration(totalDuration)}</span>
           )}
         </span>
-        <span className="ml-auto flex items-center gap-1 text-xs text-ink-soft">
+        <span className="ml-auto flex items-center gap-1 text-xs text-fg-muted">
           详情
           <ChevronDown className="h-3.5 w-3.5" />
         </span>
@@ -96,45 +100,46 @@ export function RenderProgress({ render, onRetry, onRevise, retrying }: Props) {
   }
 
   return (
-    <div className="rounded-lg border border-line bg-surface p-3">
+    // 圆角降一档：与大纲卡、播放器卡同族（对话流内联卡片）
+    <div className="rounded-inner border border-border bg-surface p-3 shadow-card">
       <div className="mb-2 flex items-center gap-2">
         {status === "running" ? (
-          <Loader2 className="h-3.5 w-3.5 animate-spin text-brick-600" />
+          <Loader2 className="h-3.5 w-3.5 animate-spin text-accent" />
         ) : status === "done" ? (
-          <Check className="h-3.5 w-3.5 text-ok-600" />
+          <Check className="h-3.5 w-3.5 text-ok" />
         ) : (
-          <AlertTriangle className="h-3.5 w-3.5 text-err-600" />
+          <AlertTriangle className="h-3.5 w-3.5 text-err" />
         )}
-        <span className="text-sm font-medium text-navy-900">
+        <span className="text-sm font-medium text-fg">
           {headLine(status, stage, step, total, failed.length)}
         </span>
-        <span className="tnum ml-auto text-xs text-ink-soft">{pct}%</span>
+        <span className="tnum ml-auto text-xs text-fg-subtle">{pct}%</span>
 
         {collapsible && (
-          <button
-            type="button"
+          <IconButton
+            label="收起"
+            size="sm"
             onClick={() => setExpandedByUser(false)}
-            aria-expanded
-            className="rounded p-0.5 text-ink-soft transition-colors hover:bg-canvas hover:text-navy-900"
-            aria-label="收起"
+            className="ml-1"
           >
             <ChevronDown className="h-3.5 w-3.5 rotate-180" />
-          </button>
+          </IconButton>
         )}
       </div>
 
-      <Progress value={pct} />
+      {/* 只有还在渲染时才让指示条流动：完成态的进度条该安静下来 */}
+      <Progress value={pct} flowing={status === "running"} />
 
       <ul className="mt-3 space-y-1.5">
         {scenes.map((sc) => (
           <li key={sc.index} className="flex items-start gap-2 text-xs">
-            <span className="tnum mt-0.5 w-4 shrink-0 text-ink-soft">{sc.index + 1}</span>
-            <span className="min-w-0 flex-1 truncate text-navy-900">{sc.title}</span>
+            <span className="tnum mt-0.5 w-4 shrink-0 text-fg-subtle">{sc.index + 1}</span>
+            <span className="min-w-0 flex-1 truncate text-fg">{sc.title}</span>
 
             {onRevise && sc.status === "done" && (
               <button
                 onClick={() => onRevise(sc.index)}
-                className="shrink-0 text-xs text-ink-soft underline-offset-2 hover:text-navy-900 hover:underline"
+                className="t-tx shrink-0 text-xs text-fg-muted underline-offset-2 hover:text-accent hover:underline"
               >
                 AI 改
               </button>
@@ -142,7 +147,7 @@ export function RenderProgress({ render, onRetry, onRevise, retrying }: Props) {
 
             {sc.status === "error" ? (
               <span className="flex items-center gap-1.5">
-                <span className="max-w-56 truncate text-err-600" title={sc.message}>
+                <span className="max-w-56 truncate text-err" title={sc.message}>
                   {sc.message}
                 </span>
                 <Button
@@ -159,14 +164,16 @@ export function RenderProgress({ render, onRetry, onRevise, retrying }: Props) {
                 </Button>
               </span>
             ) : (
-              <Badge tone={STATUS_META[sc.status].tone}>{STATUS_META[sc.status].label}</Badge>
+              <Badge tone={STATUS_META[sc.status].tone} className={sc.status === "done" ? "t-lit" : undefined}>
+                {STATUS_META[sc.status].label}
+              </Badge>
             )}
           </li>
         ))}
       </ul>
 
       {status === "error" && (
-        <p className="mt-2 rounded bg-err-600/5 px-2 py-1.5 text-xs text-err-600">
+        <p className="mt-2 rounded-inner bg-err-soft px-2 py-1.5 text-xs text-err">
           只重渲失败的那一段就行 —— 已完成的分镜可以直接播放，不用整条重来。
         </p>
       )}

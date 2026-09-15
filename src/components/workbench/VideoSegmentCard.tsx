@@ -38,7 +38,8 @@ export function VideoSegmentCard({ scenes, total, onOpenDetail, resetKey, finalU
   const done = ready >= total;
 
   return (
-    <figure className="overflow-hidden rounded-lg border border-line bg-surface">
+    // 圆角降一档：与大纲卡、进度卡同属"对话流内联卡片"这一族，三者必须一致
+    <figure className="overflow-hidden rounded-inner border border-border bg-surface shadow-card">
       <VideoPlayer
         scenes={scenes}
         total={total}
@@ -54,13 +55,13 @@ export function VideoSegmentCard({ scenes, total, onOpenDetail, resetKey, finalU
         总时长不在这里重复 —— 播放器控件层里已经有 `当前 / 全长` 了。
       */}
       <figcaption className="flex items-center gap-2 px-3 py-2">
-        <Badge tone={done ? "ok" : "info"}>
+        <Badge tone={done ? "ok" : "accent"}>
           {done ? `已出片 · ${total} 个分镜` : `渲染中 · ${ready}/${total} 分镜就绪`}
         </Badge>
         <button
           type="button"
           onClick={() => onOpenDetail()}
-          className="ml-auto flex shrink-0 items-center gap-0.5 text-xs text-ink-soft transition-colors hover:text-navy-900"
+          className="t-tx ml-auto flex shrink-0 items-center gap-0.5 text-xs text-fg-muted hover:text-fg"
         >
           分镜与详情
           <ChevronRight className="h-3.5 w-3.5" />

@@ -119,8 +119,8 @@ export function ModelPicker({ disabled }: { disabled?: boolean }) {
   if (USE_MOCK) {
     return (
       <span
-        className="shrink-0 px-1.5 text-xs text-ink-soft/60"
-        title="Mock 模式没有真实模型 —— 请求打的是前端自带的假后端，切模型没有任何意义"
+        className="shrink-0 px-1.5 text-xs text-fg-subtle"
+        title="演示模式没有接入真实模型，这里不能切换"
       >
         未接入模型
       </span>
@@ -138,7 +138,7 @@ export function ModelPicker({ disabled }: { disabled?: boolean }) {
       : current?.model || active || "未配置";
 
   const title = loadError
-    ? `读不到模型配置：${loadError}（后端没起？）`
+    ? `读不到模型配置：${loadError}`
     : legacy
       ? "当前是旧版扁平配置（没有 profiles），只能在设置页看，不能在这里切"
       : profiles.length === 0
@@ -147,7 +147,7 @@ export function ModelPicker({ disabled }: { disabled?: boolean }) {
           ? `档案 ${current?.name} · ${current?.model} —— 只配了这一档，没有别的可切`
           : disabled
             ? "生成中不能换模型：这一轮的答案已经用切换前的模型在生成了"
-            : `档案 ${current?.name} · ${current?.model}（后端全局设置，点这里换）`;
+            : `档案 ${current?.name} · ${current?.model}（影响所有会话，点这里换）`;
 
   return (
     /*
@@ -168,12 +168,12 @@ export function ModelPicker({ disabled }: { disabled?: boolean }) {
               // 不抵的话图标比上面的占位文字右偏 6px（用户圈过这个"没对齐"）；
               // 但**不能全抵**（`-ml-1.5`）—— 汉字字形左边留白 1~2px，全抵后
               // 图标反而看着比文字偏左。留 2px 才是**视觉上**对齐。
-              "flex h-8 shrink-0 items-center gap-1 rounded-md px-1.5 text-xs transition-colors",
+              "t-tx flex h-8 shrink-0 items-center gap-1 rounded-control px-1.5 text-xs",
               "-ml-1",
               canOpen
-                ? "text-ink-soft hover:bg-canvas hover:text-navy-900"
-                : "cursor-default text-ink-soft/60",
-              loadError && "text-err-600",
+                ? "text-fg-muted hover:bg-surface-2 hover:text-fg"
+                : "cursor-default text-fg-subtle",
+              loadError && "text-err",
             )}
           >
             {switching || loading ? (
@@ -186,7 +186,7 @@ export function ModelPicker({ disabled }: { disabled?: boolean }) {
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="w-72">
-          <DropdownMenuLabel>用哪个模型（后端全局设置，影响所有会话）</DropdownMenuLabel>
+          <DropdownMenuLabel>用哪个模型（对所有会话生效）</DropdownMenuLabel>
           <DropdownMenuSeparator />
           {profiles.map((p) => (
             <DropdownMenuItem
@@ -197,18 +197,18 @@ export function ModelPicker({ disabled }: { disabled?: boolean }) {
               className="items-start"
             >
               <span className="mt-0.5 w-3.5 shrink-0">
-                {p.active ? <Check className="h-3.5 w-3.5 text-ok-600" /> : null}
+                {p.active ? <Check className="h-3.5 w-3.5 text-ok" /> : null}
               </span>
               <span className="min-w-0 flex-1">
                 <span className="flex items-center gap-1.5">
-                  <span className="truncate text-sm text-navy-900">{p.model || p.name}</span>
+                  <span className="truncate text-sm text-fg">{p.model || p.name}</span>
                   {p.has_key ? null : (
-                    <span className="shrink-0 text-xs text-err-600">缺密钥</span>
+                    <span className="shrink-0 text-xs text-err">缺密钥</span>
                   )}
                 </span>
                 {/* 档案名 + 地址：模型名可能重名（比如两档都是 deepseek-chat），
                     真正的区分点是档案名，所以它必须出现在列表里 */}
-                <span className="block truncate text-xs text-ink-soft/80">
+                <span className="block truncate text-xs text-fg-muted">
                   {p.name}
                   {p.base_url ? ` · ${p.base_url}` : ""}
                 </span>
@@ -219,7 +219,7 @@ export function ModelPicker({ disabled }: { disabled?: boolean }) {
       </DropdownMenu>
 
       {switchError ? (
-        <span className="min-w-0 truncate text-xs text-err-600" title={switchError}>
+        <span className="min-w-0 truncate text-xs text-err" title={switchError}>
           切换失败：{switchError}
         </span>
       ) : null}

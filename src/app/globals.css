@@ -1,97 +1,438 @@
 @import "tailwindcss";
 
 /* ==========================================================================
-   设计系统（对齐 ../MathStoryboard/docs/Manimatic-前端架构设计.md §9）
-   品牌基调：学院藏青 + 砖橙，编辑网格风格（1px 分隔线、冷灰白底）
+   设计系统
+   --------------------------------------------------------------------------
+   三层令牌，改名先改这里：
+     1. 原始层：色阶原值（#b85c38 这种），只出现在 :root / .dark 里
+     2. 语义层：`--t-*`，**组件只认这一层**
+     3. 暴露层：`@theme inline` 把语义层接进 Tailwind，于是能写
+        `bg-surface` / `text-fg-muted` / `border-border` / `rounded-card`
+
+   为什么必须走 `@theme inline` 而不是普通 `@theme`：
+   普通 `@theme` 会把值**固化**进 `:root` 的 `--color-*`，暗色档就再也改不动它；
+   `inline` 让工具类直接产出 `var(--t-surface)`，`.dark` 一改令牌，全站跟着换。
+
+   ⚠️ 亮暗两档**故意不是同一套中性色**，不要再伸手"统一"它们：
+
+     · 亮色 = 「**中性灰** + 近黑 + 橙色小面积强调」
+       页面底与内嵌面都是**纯中性**灰（不偏黄、不偏蓝），字用近黑，结构面用近黑，
+       橙色只出现在主 CTA 与状态标记上。这是成熟 AI 产品浅色界面的通行做法 ——
+       中性灰不跟任何色相打架，橙色才能干净地跳出来。
+
+       这之前试过两种：暖白底 + 珊瑚橙（整片发闷发脏，暖色大面积铺在浅底上，
+       "层次"退化成"色差极小的一片暖"）；冷蓝灰 + 学院藏青（干净，但和橙色强调像两套体系）。
+
+     · 暗色 = 暖调深色（深暖棕黑 + 提亮后的橙）
+       深色底本来就不显暖，暖调在这里反而让长时间看视频不刺眼。
+
+   其余定稿：
+     · 危险色 `#e5484d` —— 比砖红更"确定"，删除这类不可逆操作要一眼认出
+     · 字体分两级：展示级用衬线（书卷气），功能级用无衬线（高频操作要一眼扫过）
+     · 圆角 16/12/10px + 柔和多层阴影
    ========================================================================== */
 
-@theme {
-  --color-navy-950: #0B1A2C;
-  --color-navy-900: #12263F;
-  --color-navy-800: #173350;
-  --color-navy-700: #1E3A57;
-  --color-navy-500: #3E5A78;
-  --color-navy-300: #8CA3BB;
+/* 类策略暗色：`<html class="dark">`。用 :where() 把特异性压到 0，
+   这样 `dark:` 变体在任何位置都不会和普通工具类抢优先级。 */
+@custom-variant dark (&:where(.dark, .dark *));
 
-  --color-brick-700: #9A4A2C;
-  --color-brick-600: #B85C38;
-  --color-brick-500: #CC7050;
-  --color-brick-100: #F6E7E1;
+/* ==========================================================================
+   语义层 · 亮色（默认档）
+   ========================================================================== */
 
-  --color-canvas: #F4F5F7;
-  --color-surface: #FFFFFF;
-  --color-line: #D5DAE1;
-  --color-ink: #4A5A6B;
-  --color-ink-soft: #6B7A89;
+:root {
+  color-scheme: light;
 
-  --color-ok-600: #2F7A5A;
-  --color-warn-600: #B8892B;
-  --color-err-600: #B3453C;
+  /* --- 面 ---
+     中性灰底 + 纯白卡片。
+     ⚠️ 灰必须是**纯中性**的：不带黄、也不带蓝。
+        这里用过两种错法 —— 暖米色（#f8f3ea）铺开后整片发闷发脏；
+        冷蓝灰（#f4f5f7）和橙色强调放在一起又像两套体系。
+        中性灰不跟任何色相打架，橙色才能干净地跳出来。 */
+  --t-bg: #fafafa;
+  --t-surface: #ffffff;
+  --t-surface-2: #f2f2f3; /* 内嵌面 / 静默按钮的填充（就是"确认"那种灰） */
+  --t-surface-3: #e9e9eb; /* 再深一层：进度轨道、分隔填充 */
 
-  --font-serif-cn: "Noto Serif SC", "Source Han Serif SC", "Songti SC", "SimSun", serif;
-  --font-sans-cn: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
+  /* --- 线 --- */
+  --t-border: #e6e6e8;
+  --t-border-strong: #d2d2d6;
 
-  /* 字号阶梯整体 +10%（用户反馈"整体偏小"）。
-     这里是**显式调整字号令牌**，不是给 html/body 加 zoom：
-     工作台是 h-dvh 全屏布局，zoom 会把 100dvh 一起放大 → 底部溢出、出现滚动条；
-     改字号令牌则只放大文字本身，容器仍按 viewport 计算，不会溢出。
-     行高无需处理：Tailwind 的 --text-*--line-height 是相对倍数，自动跟着字号走。
-     ⚠️ 不要改 --spacing —— 那才是等价的"全局缩放"（v4 里 w-64 / h-9 等数字尺寸都基于它）。 */
-  --text-xs: 0.82rem;
-  --text-sm: 0.96rem;
-  --text-base: 1.1rem;
-  --text-lg: 1.24rem;
-  --text-xl: 1.38rem;
-  --text-2xl: 1.65rem;
-  --text-3xl: 2.06rem;
-  --text-4xl: 2.48rem;
-  --text-5xl: 3.3rem;
+  /* --- 字 ---
+     近黑，不纯黑、也不带色相：
+     纯黑压在白底上对比过硬；而带色相的字（藏青 / 暖棕）会让"中性灰"这套立刻偏色。 */
+  --t-fg: #1a1a1c;
+  --t-fg-muted: #63636a;
+  --t-fg-subtle: #94949c;
+
+  /* --- 品牌：橙色只做小面积强调 --- */
+  --t-accent: #cf5a34;
+  --t-accent-hover: #b74a28;
+  --t-accent-fg: #ffffff;
+  --t-accent-soft: #fbeae2;
+  --t-accent-faint: #fdf5f1;
+  --t-accent-2: #a9663a;
+  --t-accent-2-soft: #f6e9dd;
+
+  /* --- 状态 --- */
+  --t-ok: #2f7a5a;
+  --t-ok-soft: #e8f1ee;
+  --t-warn: #b8892b;
+  --t-warn-soft: #faf3e2;
+  --t-err: #e5484d; /* 危险色保留 #e5484d：比砖红更"确定"，删除这类操作要一眼认出 */
+  --t-err-soft: #fdecec;
+
+  /* --- 特殊面 --- */
+  --t-inverse: #1f1f23; /* 反色面：轻提示、Tooltip */
+  --t-inverse-fg: #fafafa;
+  /* 结构面（对话气泡、分镜序号胶囊）的填充色。
+
+     ⚠️ 名字里的 `solid` 指"实心填充"（相对于描边 / 透明），**不指颜色深浅**。
+        这一档在两个主题下是**相反的明度关系**，这是有意的：
+          亮色档 = **很浅的品牌色**填充（#fbeae2），配近黑字
+          暗色档 = 比页面底亮一档的面
+
+     ⚠️ 亮色档的关键是"**浅**"，不是"深"，也不是"中性"：
+       · 试过五种深色（近黑 / 暗棕 / 暖棕 / 藏青 / 深灰）→ 全都不对。
+         气泡是"我说的话"，它只需要和页面底有一点点区分，
+         不该是整屏最重的一块 —— 深色气泡会把视线从正文上拽走。
+       · 试过纯中性灰 → 干净但没温度，整屏像未上色。
+       · 现在用**最浅的一档品牌色**：这是"加一点橙色"的正确做法 ——
+         橙色以 tint 的形式出现，面积可以有一整块（气泡），但浓度极低。
+         文字用近黑而不是品牌色：浅底上再放橙字，对比度会掉到看不出来。 */
+  --t-solid: #fbeae2;
+  --t-solid-fg: #1a1a1c;
+  --t-scrim: rgba(20, 20, 22, 0.45); /* 弹窗遮罩 */
+  --t-video: #17171a; /* 视频容器底：比页面底暗得多，画面才有“嵌进去”的感觉 */
+  --t-glass-bg: rgba(255, 255, 255, 0.72);
+  --t-glass-border: rgba(255, 255, 255, 0.8);
+  --t-glass-blur: 12px;
+
+  --t-focus: rgba(207, 90, 52, 0.32);
+
+  /* --- 品牌光晕：Hero / 空态这类“关键区”的视觉落点 ---
+     中性灰底上**不铺大面积暖光**（会糊成一块脏黄），
+     只留一丝品牌色 + 一层几乎看不出的中性渐变，让关键区"有一点空气感"就够了。 */
+  --t-hero-glow:
+    radial-gradient(50% 46% at 46% -8%, rgba(207, 90, 52, 0.05), transparent 68%),
+    radial-gradient(34% 32% at 90% 16%, rgba(20, 20, 22, 0.03), transparent 72%);
+  --t-accent-grad: linear-gradient(135deg, #cf5a34 0%, #e0784a 55%, #c98a3c 120%);
+
+  /* --- 形态 ---
+     圆角从 20/16/12 收到 16/12/10：原来的档位在密集的工作台里显得"胖"，
+     尤其是缩略卡、分镜行这些只有一两行文字的小面；收到 16 仍保有暖调的圆润感。 */
+  --t-radius-control: 10px;
+  --t-radius-inner: 12px;
+  --t-radius-card: 16px;
+  /* ⚠️ 这里**没有**"气泡"单独一档。
+     曾经加过 `--t-radius-bubble: 20px`（想做参考产品那种胶囊），
+     但它会吃掉"右下角一个小直角指向说话人"的尾巴 —— 已回退成
+     `rounded-card` + `rounded-br-[5px]`（见 ChatStream）。
+     圆角档位越少越不容易撞车，不必为单个组件开一档。 */
+  --t-radius-pill: 999px;
+
+  /* --- 阴影：三级 + 品牌光 ---
+     投影用**中性黑**：带色相的投影（暖棕 / 藏青）会立刻让中性灰偏色。 */
+  --t-shadow-1: 0 1px 2px rgba(20, 20, 22, 0.05), 0 6px 18px -10px rgba(20, 20, 22, 0.13);
+  --t-shadow-2: 0 2px 6px rgba(20, 20, 22, 0.07), 0 18px 40px -18px rgba(20, 20, 22, 0.22);
+  --t-shadow-3: 0 30px 64px -24px rgba(20, 20, 22, 0.28);
+  --t-shadow-accent: 0 10px 28px -12px rgba(207, 90, 52, 0.24);
+
+  /* --- 字体：展示级用衬线，功能级与正文用无衬线 ---
+     ⚠️ 无衬线这一档**必须把 "Noto Sans SC" 放在最前面**，不能排在系统字体之后。
+
+     排在后面时 Windows 会命中微软雅黑，而微软雅黑只有 Regular / Bold 两个字重：
+       `font-medium`(500) → 渲染成 Regular
+       `font-semibold`(600) → 直接跳成 Bold
+       501~699 之间全部吸附到 Bold
+     结果就是"稍微加粗一点"这个需求压根表达不出来（只能 Regular 或 Bold 二选一）。
+     Noto Sans SC 是可变的（100~900），550 这种中间值才真实存在。
+
+     系统字体仍保留在后面兜底：网络被墙 / 字体没加载出来时，中文不会掉成衬线体。 */
+  --t-font-display: "Noto Serif SC", "Source Han Serif SC", "Songti SC", serif;
+  --t-font-heading: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  --t-font-body: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+
+  /* --- 动效 --- */
+  --t-dur-fast: 140ms;
+  --t-dur-base: 220ms;
+  --t-dur-slow: 320ms;
+  --t-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --t-ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --t-hover-lift: -2px;
 }
+
+/* ==========================================================================
+   语义层 · 暗色
+   --------------------------------------------------------------------------
+   不是简单反相：用深暖棕黑替代纯黑、把强调色提亮一档、把阴影加深而不是变淡。
+   这样长时间盯着视频时页面边缘不会"发亮刺眼"。
+   只覆盖发生变化的变量 —— 未列出的（圆角、缓动、字体）沿用亮色档。
+   ========================================================================== */
+
+.dark {
+  color-scheme: dark;
+
+  --t-bg: #17130f;
+  --t-surface: #211b16;
+  --t-surface-2: #2b241d;
+  --t-surface-3: #352c24;
+
+  --t-border: #3a3128;
+  --t-border-strong: #4d4133;
+
+  --t-fg: #f6f0e8;
+  --t-fg-muted: #b3a490;
+  --t-fg-subtle: #87765f;
+
+  --t-accent: #e8744f;
+  --t-accent-hover: #f2855f;
+  --t-accent-soft: rgba(232, 116, 79, 0.16);
+  --t-accent-faint: rgba(232, 116, 79, 0.07);
+  --t-accent-2: #d99a5c;
+  --t-accent-2-soft: rgba(217, 154, 92, 0.14);
+
+  --t-ok: #7fb07f;
+  --t-ok-soft: rgba(127, 176, 127, 0.14);
+  --t-warn: #e0ab5c;
+  --t-warn-soft: rgba(224, 171, 92, 0.14);
+  --t-err: #f2686d;
+  --t-err-soft: rgba(242, 104, 109, 0.14);
+
+  /* 反色面在暗色下要“反过来变亮”，否则轻提示会糊进页面背景 */
+  --t-inverse: #f6f0e8;
+  --t-inverse-fg: #241e18;
+  /* 实心面在暗色档要比页面底**亮**（页面底 #17130f → 这里 #3b3129），
+     否则它会糊进背景里彻底消失 */
+  --t-solid: #3b3129;
+  --t-solid-fg: #f6f0e8;
+  --t-scrim: rgba(0, 0, 0, 0.62);
+  --t-video: #0d0a07;
+  --t-glass-bg: rgba(33, 27, 22, 0.68);
+  --t-glass-border: rgba(255, 255, 255, 0.07);
+
+  --t-focus: rgba(232, 116, 79, 0.42);
+
+  --t-hero-glow:
+    radial-gradient(50% 46% at 46% -8%, rgba(232, 116, 79, 0.12), transparent 68%),
+    radial-gradient(34% 32% at 90% 16%, rgba(217, 154, 92, 0.09), transparent 72%);
+  --t-accent-grad: linear-gradient(135deg, #e8744f 0%, #f2855f 55%, #d99a5c 120%);
+
+  --t-shadow-1: 0 1px 2px rgba(0, 0, 0, 0.45), 0 10px 24px -12px rgba(0, 0, 0, 0.55);
+  --t-shadow-2: 0 2px 6px rgba(0, 0, 0, 0.5), 0 20px 44px -18px rgba(0, 0, 0, 0.62);
+  --t-shadow-3: 0 28px 68px -24px rgba(0, 0, 0, 0.78);
+  --t-shadow-accent: 0 10px 30px -12px rgba(232, 116, 79, 0.3);
+}
+
+/* ==========================================================================
+   暴露层 · 把语义令牌接进 Tailwind
+   ========================================================================== */
+
+@theme inline {
+  /* 面 / 线 / 字 */
+  --color-bg: var(--t-bg);
+  --color-surface: var(--t-surface);
+  --color-surface-2: var(--t-surface-2);
+  --color-surface-3: var(--t-surface-3);
+  --color-border: var(--t-border);
+  --color-border-strong: var(--t-border-strong);
+  --color-fg: var(--t-fg);
+  --color-fg-muted: var(--t-fg-muted);
+  --color-fg-subtle: var(--t-fg-subtle);
+
+  /* 品牌 / 状态 */
+  --color-accent: var(--t-accent);
+  --color-accent-hover: var(--t-accent-hover);
+  --color-accent-fg: var(--t-accent-fg);
+  --color-accent-soft: var(--t-accent-soft);
+  --color-accent-faint: var(--t-accent-faint);
+  --color-accent-2: var(--t-accent-2);
+  --color-accent-2-soft: var(--t-accent-2-soft);
+  --color-ok: var(--t-ok);
+  --color-ok-soft: var(--t-ok-soft);
+  --color-warn: var(--t-warn);
+  --color-warn-soft: var(--t-warn-soft);
+  --color-err: var(--t-err);
+  --color-err-soft: var(--t-err-soft);
+
+  /* 特殊面 */
+  --color-inverse: var(--t-inverse);
+  --color-inverse-fg: var(--t-inverse-fg);
+  --color-solid: var(--t-solid);
+  --color-solid-fg: var(--t-solid-fg);
+  --color-scrim: var(--t-scrim);
+  --color-video: var(--t-video);
+  --color-focus: var(--t-focus);
+
+  /* 形态 */
+  --radius-control: var(--t-radius-control);
+  --radius-inner: var(--t-radius-inner);
+  --radius-card: var(--t-radius-card);
+  --radius-pill: var(--t-radius-pill);
+
+  /* 阴影
+     ⚠️ 品牌光那一档叫 `glow` 而不是 `accent`：Tailwind v4 里 `shadow-*` 同时可能是
+     `--shadow-*`（投影）与 `--color-*`（投影颜色），`shadow-accent` 会撞上 `--color-accent`，
+     解析成"投影颜色"而不是我们想要的四级投影。 */
+  --shadow-card: var(--t-shadow-1);
+  --shadow-raised: var(--t-shadow-2);
+  --shadow-pop: var(--t-shadow-3);
+  --shadow-glow: var(--t-shadow-accent);
+
+  /* 字体 */
+  --font-display: var(--t-font-display);
+  --font-heading: var(--t-font-heading);
+  --font-body: var(--t-font-body);
+
+  /* 缓动（覆盖 Tailwind 内置的 ease-out，让全站同一条曲线） */
+  --ease-out: var(--t-ease-out);
+  --ease-spring: var(--t-ease-spring);
+
+  /* --- 字号阶梯 ---
+     整体比默认大一档（用户反馈过"偏小"），并**显式给出行高**：
+     行高不跟字号走的时代已经过去（都支持 --text-*--line-height），
+     而"排版发闷"多半就是行高比字号更保守造成的。
+     ⚠️ 这里是**字号令牌**，不是给 html/body 加 zoom：
+     工作台是 h-dvh 全屏布局，zoom 会把 100dvh 一起放大 → 底部溢出。
+     ⚠️⚠️ 也**不要**去动 --spacing —— 那才是等价的"全局缩放"（w-64/h-9 全基于它）。 */
+  --text-xs: 0.82rem;
+  --text-xs--line-height: 1.5;
+  --text-sm: 0.96rem;
+  --text-sm--line-height: 1.6;
+  --text-base: 1.1rem;
+  --text-base--line-height: 1.75;
+  --text-lg: 1.24rem;
+  --text-lg--line-height: 1.6;
+  --text-xl: 1.38rem;
+  --text-xl--line-height: 1.5;
+  --text-2xl: 1.65rem;
+  --text-2xl--line-height: 1.4;
+  --text-3xl: 2.06rem;
+  --text-3xl--line-height: 1.25;
+  --text-4xl: 2.48rem;
+  --text-4xl--line-height: 1.15;
+  --text-5xl: 3.3rem;
+  --text-5xl--line-height: 1.05;
+}
+
+/*
+ * ============================================================================
+ * 过渡期兼容层已删除（旧 `navy-*` / `brick-*` / `canvas` / `line` / `ink*` /
+ * `ok-600` / `warn-600` / `err-600` / `font-serif-cn` / `font-sans-cn`）。
+ *
+ * 删除前核对过：`components/` 与 `app/` 下已无任何消费方（全仓正则只剩
+ * 三处 `eslint-disable-next-line` 里的 `-line` 和一个说明性注释）。
+ *
+ * ⚠️ 不要再把它们加回来。两套色板并存看着"方便"，实际代价是同一个视觉意图
+ *    有两种写法，改一处漏一处 —— "组件不统一"有一半是这么来的。
+ *    现在只认语义令牌：面 `bg/surface/surface-2/surface-3`、线 `border/border-strong`、
+ *    字 `fg/fg-muted/fg-subtle`、品牌 `accent/accent-2`、状态 `ok/warn/err`。
+ * ============================================================================
+ */
+
+/* ==========================================================================
+   基础层
+   ========================================================================== */
 
 @layer base {
   html {
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    /* 主题切换时不做背景过渡：否则从亮切到暗会闪一下"中间色" */
+    background: var(--t-bg);
   }
 
   body {
-    background: var(--color-canvas);
-    color: var(--color-ink);
-    font-family: var(--font-sans-cn);
+    background: var(--t-bg);
+    color: var(--t-fg);
+    font-family: var(--t-font-body);
   }
 
-  h1, h2, h3, h4 {
-    font-family: var(--font-serif-cn);
-    color: var(--color-navy-900);
+  /*
+   * 标题默认用**功能级**字体（无衬线）。
+   * 展示级（Hero、空态问候语、章节标题）才显式加 `font-display` 换成衬线 ——
+   * 反过来的默认值是错的：全局衬线会让弹窗标题、卡片标题这类高频元素变慢识别。
+   */
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--t-font-heading);
+    color: var(--t-fg);
   }
 
-  /* 数字一律等高 + 加粗。
-     踩过的坑：Georgia 是旧式数字（0/1 矮、6/8 高），混排时高低不齐。 */
+  /* 数字一律等高。踩过的坑：Georgia 是旧式数字（0/1 矮、6/8 高），混排时高低不齐。 */
   .tnum {
     font-variant-numeric: tabular-nums;
     font-feature-settings: "tnum" 1;
   }
+
+  /* 键盘焦点全局一套，且只在键盘操作时出现 */
+  :focus-visible {
+    outline: 2px solid var(--t-accent);
+    outline-offset: 2px;
+  }
 }
 
-/* 细滚动条：三栏里滚动区域多，默认滚动条太抢眼 */
+/* ==========================================================================
+   工具层
+   ========================================================================== */
+
 @layer utilities {
+  /* --- 滚动条 --- */
   .scrollbar-thin {
     scrollbar-width: thin;
-    scrollbar-color: var(--color-line) transparent;
+    scrollbar-color: var(--t-border-strong) transparent;
   }
   .scrollbar-thin::-webkit-scrollbar {
     width: 8px;
     height: 8px;
   }
   .scrollbar-thin::-webkit-scrollbar-thumb {
-    background: var(--color-line);
+    background: var(--t-border-strong);
     border-radius: 999px;
   }
   .scrollbar-thin::-webkit-scrollbar-track {
     background: transparent;
   }
 
-  /* 流式文字的打字机光标 */
+  /* --- 页面容器 ---
+     全站**只有这一套**，取值就是选型样片页的 `max-w-6xl` + `px-5`。
+     样片是唯一被确认过的版式基准；每个页面各写一套宽度，就会出现
+     "怎么和样片不一样"的反复。要调宽窄只改这里，所有页面一起动。 --- */
+  .page-shell {
+    margin-inline: auto;
+    width: 100%;
+    max-width: 72rem; /* 1152px */
+    padding-inline: 1.25rem; /* 20px */
+  }
+
+  /* --- 卡片网格 ---
+     列宽走**比例**（`1fr`），不写死像素区间：
+     视口变宽卡片跟着变宽、变窄跟着变窄，比例在整段宽度区间里是同一套。
+     只有"一列已经不足 20rem"时才减少列数，避免被挤成窄高条。
+     （`min(100%, 20rem)` 这个夹法是必需的：窄屏下 20rem 会超过容器，
+       不加 `min` 就会横向溢出。）
+
+     ⚠️ 不要改回 `sm:grid-cols-3` 这类断点写法。那种写法下**列数由窗口决定、
+     卡片宽度由容器决定**，两者一错位，同一个页面在不同窗口宽度下就会呈现
+     完全不同的卡片比例 —— 这正是之前"套餐页和样片不一样"的根因。 --- */
+  .card-grid {
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
+  }
+
+  /* --- 侧栏收展 ---
+     只过渡 `width`。配合"外层裁切 + 内层定宽"使用（见 Workbench 的左右 aside）：
+     外层宽度 0 ↔ 目标宽，内层恒定宽，于是内容不重排，只是被拉出/推回。 --- */
+  .t-collapse {
+    transition-property: width;
+    transition-duration: var(--t-dur-base);
+    transition-timing-function: var(--t-ease-out);
+  }
+
+  /* --- 流式文字的打字机光标 --- */
   .caret::after {
     content: "";
     display: inline-block;
@@ -99,44 +440,205 @@
     height: 1.05em;
     margin-left: 2px;
     vertical-align: -0.15em;
-    background: var(--color-brick-600);
+    background: var(--t-accent);
     animation: caret-blink 1s steps(2, start) infinite;
+  }
+
+  /* --- 统一的交互过渡：比 `transition-colors` 多带了阴影与位移，
+         全站按钮/卡片/列表项都用它，手感才一致 --- */
+  .t-tx {
+    transition-property: color, background-color, border-color, box-shadow, opacity, transform;
+    transition-duration: var(--t-dur-base);
+    transition-timing-function: var(--t-ease-out);
+  }
+
+  /* 悬停浮起（卡片、缩略图） */
+  .t-lift {
+    transition-property: transform, box-shadow, border-color, background-color;
+    transition-duration: var(--t-dur-base);
+    transition-timing-function: var(--t-ease-out);
+  }
+  .t-lift:hover {
+    transform: translateY(var(--t-hover-lift));
+    box-shadow: var(--t-shadow-2);
+  }
+
+  /* 按压回弹（按钮） */
+  .t-press:active {
+    transform: translateY(1px) scale(0.985);
+  }
+
+  /* 品牌光晕：铺在 Hero / 空态这类关键区 */
+  .t-glow {
+    background-image: var(--t-hero-glow);
+  }
+  /* 品牌渐变：主 CTA */
+  .t-grad {
+    background-image: var(--t-accent-grad);
+  }
+  /* 毛玻璃：顶栏、吸顶工具条 */
+  .t-glass {
+    background: var(--t-glass-bg);
+    -webkit-backdrop-filter: blur(var(--t-glass-blur)) saturate(1.5);
+    backdrop-filter: blur(var(--t-glass-blur)) saturate(1.5);
+  }
+
+  /* 分段控件里"选中那一段"的内嵌圆角：比外壳小一点才像嵌进去的。
+     写成工具类而不是 `rounded-[calc(...)]`：calc 里的减号会被 Tailwind 的任意值解析器
+     当成负号，容易生成非法声明。 */
+  .r-inset {
+    border-radius: max(4px, calc(var(--t-radius-control) - 2px));
+  }
+
+  /* 骨架屏微光 */
+  .t-skeleton {
+    background: var(--t-surface-2);
+    animation: skeleton-breathe 1.8s var(--t-ease-out) infinite;
+  }
+
+  /* 进度条上流动的一道光泽，让"还在动"这件事可见 */
+  .t-flow::after {
+    content: "";
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 40%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.45), transparent);
+    animation: flow 1.6s linear infinite;
+  }
+
+  /* 分镜"就绪点亮" */
+  .t-lit {
+    animation: lit 420ms var(--t-ease-out);
+  }
+
+  /* --- Radix 浮层进出场 --- */
+  .anim-overlay {
+    animation: overlay-in var(--t-dur-base) var(--t-ease-out);
+  }
+  .anim-dialog {
+    animation: dialog-in var(--t-dur-slow) var(--t-ease-spring);
+  }
+  .anim-sheet-left {
+    animation: sheet-in-left var(--t-dur-slow) var(--t-ease-out);
+  }
+  .anim-sheet-right {
+    animation: sheet-in-right var(--t-dur-slow) var(--t-ease-out);
+  }
+  .anim-pop {
+    animation: pop-in var(--t-dur-fast) var(--t-ease-out);
+  }
+  /* 就地展开/淡入（进度卡片展开、产物详情切入等） */
+  .anim-rise {
+    animation: rise-in var(--t-dur-base) var(--t-ease-out);
   }
 }
 
+/* ==========================================================================
+   关键帧
+   ========================================================================== */
+
 @keyframes caret-blink {
-  to { visibility: hidden; }
+  to {
+    visibility: hidden;
+  }
 }
 
-/* Radix 弹出层的进出场动画（没装 tailwindcss-animate，手写几个够用） */
-@keyframes overlay-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes overlay-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
 @keyframes dialog-in {
-  from { opacity: 0; transform: translate(-50%, -48%) scale(0.97); }
-  to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  from {
+    opacity: 0;
+    transform: translate(-50%, -48%) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
 }
-@keyframes sheet-in-left { from { transform: translateX(-100%); } to { transform: translateX(0); } }
-@keyframes sheet-in-right { from { transform: translateX(100%); } to { transform: translateX(0); } }
-@keyframes pop-in { from { opacity: 0; transform: scale(0.97); } to { opacity: 1; transform: scale(1); } }
-@keyframes rise-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
 
-@layer utilities {
-  .anim-overlay { animation: overlay-in 150ms ease-out; }
-  .anim-dialog { animation: dialog-in 180ms ease-out; }
-  .anim-sheet-left { animation: sheet-in-left 220ms cubic-bezier(0.32, 0.72, 0, 1); }
-  .anim-sheet-right { animation: sheet-in-right 220ms cubic-bezier(0.32, 0.72, 0, 1); }
-  .anim-pop { animation: pop-in 120ms ease-out; }
-  /* 就地展开/淡入（进度卡片展开、产物详情切入等） */
-  .anim-rise { animation: rise-in 180ms ease-out; }
+@keyframes sheet-in-left {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}
+
+@keyframes sheet-in-right {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes skeleton-breathe {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
+}
+
+@keyframes flow {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(320%); }
+}
+
+@keyframes lit {
+  from {
+    opacity: 0.4;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* ==========================================================================
+   无障碍：命中"减少动态效果"时，一切位移/循环动画降级为瞬时
+   （只杀动画与过渡，**不杀颜色变化** —— 否则主题切换也会失效）
+   ========================================================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .t-lift:hover {
+    transform: none;
+  }
 }
 
 /*
  * 真全屏背景。
  * `requestFullscreen` 后浏览器默认是纯黑底；视频是 16:9 而屏幕不一定是，
- * 两者色差会显出一圈割裂的边。统一成播放器同一档藏青即可。
+ * 两者色差会显出一圈割裂的边。统一成播放器同一档深色即可。
  */
 :fullscreen {
-  background: var(--color-navy-950);
+  background: var(--t-video);
 }
-:-webkit-full-screen {
-  background: var(--color-navy-950);
+::-webkit-full-screen {
+  background: var(--t-video);
 }

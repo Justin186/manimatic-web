@@ -7,7 +7,7 @@ import { fetchLlmProfiles, saveLlmProfile, setLlmActive, USE_MOCK } from "@/lib/
 import type { LlmProfile, LlmProfilesResponse } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input, Separator } from "@/components/ui/primitives";
+import { Badge, Input, Separator } from "@/components/ui/primitives";
 import { cn } from "@/lib/utils";
 
 /**
@@ -68,13 +68,13 @@ export function ModelSettings() {
       <Card className="mt-6">
         <CardHeader>
           <CardTitle>模型 API</CardTitle>
-          <CardDescription>当前是 Mock 模式，没有真实模型可配</CardDescription>
+          <CardDescription>当前是演示模式，没有可配置的真实模型</CardDescription>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-ink-soft">
-            改 <code className="rounded bg-canvas px-1">web/.env.local</code> 里的
-            <code className="mx-1 rounded bg-canvas px-1">NEXT_PUBLIC_USE_MOCK=false</code>
-            切到真后端后，这里会列出所有模型档案、可以切换和新增。
+          {/* ⚠️ 这里原先写的是改 .env.local 里的 NEXT_PUBLIC_USE_MOCK —— 那是给开发者看的
+              操作步骤，摆给用户看等于让他去改环境变量。 */}
+          <p className="text-sm text-fg-muted">
+            接入模型服务后，这里会列出所有模型档案，可以切换和新增。
           </p>
         </CardContent>
       </Card>
@@ -100,24 +100,23 @@ export function ModelSettings() {
       <CardHeader>
         <CardTitle>模型 API</CardTitle>
         <CardDescription>
-          密钥存在<strong className="font-medium text-ink">后端</strong>（
-          <code className="rounded bg-canvas px-1">llm.local.json</code>），
-          这里只切换用哪一档 —— 它永远不进浏览器。
+          密钥保存在<strong className="font-medium text-fg">服务端</strong>
+          ，不会下发到浏览器。这里只切换用哪一档。
         </CardDescription>
       </CardHeader>
 
       <CardContent className="space-y-3">
         {error ? (
-          <p className="flex items-start gap-1.5 rounded-md bg-err-600/5 px-3 py-2 text-xs text-err-600">
+          <p className="flex items-start gap-1.5 rounded-inner bg-err-soft px-3 py-2 text-xs text-err">
             <XCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-            读不到配置：{error}（后端没起？）
+            读不到配置：{error}
           </p>
         ) : null}
 
         {data ? (
           <>
             {data.legacy ? (
-              <p className="rounded-md bg-warn-600/10 px-3 py-2 text-xs text-warn-600">
+              <p className="rounded-inner bg-warn-soft px-3 py-2 text-xs text-warn">
                 当前配置是旧版扁平形态（没有 profiles），只能查看、不能在这里增删。
                 想用多档案，需要在文件里改成 active + profiles 结构。
               </p>
@@ -134,31 +133,31 @@ export function ModelSettings() {
             ))}
 
             {/* 生效值单独列一行：文件和生效值不一致时，这才是真相 */}
-            <div className="rounded-md border border-line bg-canvas px-3 py-2 text-xs text-ink-soft">
+            <div className="rounded-inner border border-border bg-surface-2 px-3 py-2 text-xs text-fg-muted">
               当前生效：
               {data.effective.error ? (
-                <span className="text-err-600"> {data.effective.error}</span>
+                <span className="text-err"> {data.effective.error}</span>
               ) : (
                 <>
-                  <span className="ml-1 font-medium text-navy-900">
+                  <span className="ml-1 font-medium text-fg">
                     [{data.effective.profile}] {data.effective.model}
                   </span>
                   <span className="tnum ml-2">
                     max_tokens={data.effective.max_tokens}
                   </span>
                   {data.effective.has_key ? null : (
-                    <span className="ml-2 text-err-600">密钥未配置</span>
+                    <span className="ml-2 text-err">密钥未配置</span>
                   )}
                 </>
               )}
-              <div className="mt-0.5 truncate text-ink-soft/70">{data.path}</div>
+              <div className="mt-0.5 truncate text-fg-muted/70">{data.path}</div>
             </div>
 
             {!data.legacy ? (
               <>
                 <Separator />
                 <Button
-                  variant={adding ? "ghost" : "subtle"}
+                  variant={adding ? "ghost" : "soft"}
                   size="sm"
                   onClick={() => {
                     setAdding(!adding);
@@ -194,13 +193,13 @@ export function ModelSettings() {
             ) : null}
           </>
         ) : !error ? (
-          <p className="flex items-center gap-1.5 text-sm text-ink-soft">
+          <p className="flex items-center gap-1.5 text-sm text-fg-muted">
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
             正在读取…
           </p>
         ) : null}
 
-        {note ? <p className="text-xs text-ink-soft">{note}</p> : null}
+        {note ? <p className="text-xs text-fg-muted">{note}</p> : null}
       </CardContent>
     </Card>
   );
@@ -220,38 +219,34 @@ function ProfileRow({
   return (
     <div
       className={cn(
-        "flex items-start gap-3 rounded-md border px-3 py-2.5",
-        profile.active ? "border-navy-900/25 bg-navy-900/[0.03]" : "border-line bg-surface",
+        "flex items-start gap-3 rounded-inner border px-3 py-2.5",
+        profile.active ? "border-accent/40 bg-accent-soft" : "border-border bg-surface",
       )}
     >
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm font-medium text-navy-900">{profile.name}</span>
+          <span className="text-sm font-medium text-fg">{profile.name}</span>
           {profile.active ? (
-            <span className="inline-flex items-center gap-0.5 rounded-full border border-ok-600/25 bg-ok-600/10 px-1.5 py-0.5 text-xs text-ok-600">
+            <Badge tone="ok">
               <CheckCircle2 className="h-3 w-3" />
               使用中
-            </span>
+            </Badge>
           ) : null}
-          {profile.has_key ? null : (
-            <span className="rounded-full border border-err-600/25 bg-err-600/10 px-1.5 py-0.5 text-xs text-err-600">
-              缺密钥
-            </span>
-          )}
+          {profile.has_key ? null : <Badge tone="err">缺密钥</Badge>}
         </div>
-        <p className="mt-0.5 truncate text-xs text-ink-soft">{profile.model}</p>
-        <p className="truncate text-xs text-ink-soft/70">{profile.base_url}</p>
+        <p className="mt-0.5 truncate text-xs text-fg-muted">{profile.model}</p>
+        <p className="truncate text-xs text-fg-muted/70">{profile.base_url}</p>
         {profile.note ? (
-          <p className="mt-0.5 text-xs text-ink-soft/70">{profile.note}</p>
+          <p className="mt-0.5 text-xs text-fg-muted/70">{profile.note}</p>
         ) : null}
-        <p className="tnum mt-0.5 text-xs text-ink-soft/60">
+        <p className="tnum mt-0.5 text-xs text-fg-muted/60">
           max_tokens={profile.max_tokens ?? "-"} · temperature={profile.temperature ?? "-"}
           {profile.headers.length ? ` · 额外头 ${profile.headers.length} 个` : ""}
           {profile.headers.length ? "（中转站防 Cloudflare 用）" : ""}
         </p>
       </div>
       {profile.active ? null : (
-        <Button size="sm" variant="subtle" disabled={disabled} onClick={onSwitch}>
+        <Button size="sm" variant="soft" disabled={disabled} onClick={onSwitch}>
           {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : (
             <>
               <RefreshCw className="mr-1 h-3.5 w-3.5" />
@@ -289,9 +284,9 @@ function AddProfileForm({
   const ready = name.trim() && baseUrl.trim() && model.trim() && apiKey.trim();
 
   return (
-    <div className="anim-rise space-y-2 rounded-md border border-line bg-canvas p-3">
+    <div className="anim-rise space-y-2 rounded-inner border border-border bg-surface-2 p-3">
       <div className="grid gap-2 md:grid-cols-2">
-        <label className="text-xs text-ink-soft">
+        <label className="text-xs text-fg-muted">
           档案名
           <Input
             className="mt-1 h-9"
@@ -300,7 +295,7 @@ function AddProfileForm({
             placeholder="例如 ollama"
           />
         </label>
-        <label className="text-xs text-ink-soft">
+        <label className="text-xs text-fg-muted">
           模型名
           <Input
             className="mt-1 h-9"
@@ -310,7 +305,7 @@ function AddProfileForm({
           />
         </label>
       </div>
-      <label className="block text-xs text-ink-soft">
+      <label className="block text-xs text-fg-muted">
         base_url
         <Input
           className="mt-1 h-9"
@@ -320,7 +315,7 @@ function AddProfileForm({
         />
       </label>
       <div className="grid gap-2 md:grid-cols-2">
-        <label className="text-xs text-ink-soft">
+        <label className="text-xs text-fg-muted">
           API 密钥
           <Input
             className="mt-1 h-9"
@@ -330,7 +325,7 @@ function AddProfileForm({
             placeholder="本地 Ollama 随便填个非空值"
           />
         </label>
-        <label className="text-xs text-ink-soft">
+        <label className="text-xs text-fg-muted">
           max_tokens
           <Input
             className="mt-1 h-9"
@@ -340,9 +335,9 @@ function AddProfileForm({
           />
         </label>
       </div>
-      <p className="text-xs text-ink-soft/70">
-        密钥会直接写进后端的 llm.local.json（该文件已在 .gitignore 里）。
-        本地 Ollama 不校验密钥，但必须填个非空值 —— 后端靠它判断「配置好了没」。
+      <p className="text-xs text-fg-muted/70">
+        密钥只保存在服务端，不会进浏览器缓存。本地模型通常不校验密钥，
+        但需要填一个非空值，否则会被当成「还没配置好」。
       </p>
       <Button
         size="sm"

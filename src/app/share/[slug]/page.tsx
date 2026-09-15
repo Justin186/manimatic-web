@@ -1,8 +1,9 @@
 import Link from "next/link";
-import { Download, Sparkles } from "lucide-react";
+import { Download, Link2Off, Sparkles } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/primitives";
+import { EmptyState } from "@/components/ui/section";
 
 /**
  * 分享页：公开，无需登录。
@@ -17,6 +18,10 @@ import { Badge } from "@/components/ui/primitives";
  *
  * ⚠️ 必须 force-dynamic：分享可以随时取消，缓存住一个已经取消的分享链接
  *    比 404 更糟（用户会以为"还能看"）。
+ *
+ * ⚠️ 服务端组件不接客户端 hook，所以这里的**主题跟随是"免费"的**：
+ *    它渲染在 `<html class="dark">` 之下，语义令牌（`bg-surface` / `text-fg` …）
+ *    会自己算出暗色值。不要为了主题在这里加 `useTheme`。
  */
 
 export const dynamic = "force-dynamic";
@@ -40,8 +45,8 @@ async function loadShare(slug: string): Promise<SharePayload> {
     const isDerivative = slug.includes("derivative");
     return {
       ok: true,
-      title: isDerivative ? "导数就是切线的斜率" : "一段数学讲解动画",
-      subtitle: "4 个分镜 · 由 AI 生成分镜、Manim 确定性渲染",
+      title: isDerivative ? "导数就是切线的斜率" : "一段讲解动画",
+      subtitle: "4 个分镜 · 由 AI 生成分镜、逐段渲染成片",
       segments: [],
       final: {
         url: isDerivative ? "/demo/derivative_full.mp4" : "/demo/pythagorean_full.mp4",
@@ -54,23 +59,29 @@ async function loadShare(slug: string): Promise<SharePayload> {
     const res = await fetch(`${API_BASE}/api/share/${encodeURIComponent(slug)}`, {
       cache: "no-store",
     });
-    if (!res.ok) return { ok: false, error: `后端返回 ${res.status}` };
+    if (!res.ok) {
+      // 页面上的话给人看，状态码给日志看 —— 别把 502 甩到分享链接的访问者脸上
+      console.error(`[share] 拉取 ${slug} 失败：后端返回 ${res.status}`);
+      return { ok: false, error: "这段内容暂时打不开，稍后再试试。" };
+    }
     return (await res.json()) as SharePayload;
-  } catch {
+  } catch (e) {
     // 后端没起 / 地址不对。这里不要抛出，让它变成页面上一句能看懂的话 ——
     // 分享页是给别人看的，甩一个 500 页面等于把内部问题暴露给访问者。
-    return { ok: false, error: "连不上后端服务" };
+    console.error(`[share] 连不上后端，slug=${slug}`, e);
+    return { ok: false, error: "暂时连不上服务，稍后再试试。" };
   }
 }
 
 function Shell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="mx-auto min-h-dvh max-w-3xl px-4 py-10">
+    // 这一页主体是 16:9 的成片，容器越窄视频越小 —— 走全站统一的 .page-shell
+    <div className="page-shell min-h-dvh py-10">
       <div className="flex items-center gap-2">
-        <span className="grid h-8 w-8 place-items-center rounded bg-navy-900 text-white">
+        <span className="t-grad grid h-8 w-8 place-items-center rounded-control text-accent-fg">
           <Sparkles className="h-4 w-4" />
         </span>
-        <span className="font-serif-cn text-base font-semibold text-navy-900">智绘课堂</span>
+        <span className="font-display text-base font-semibold text-fg">智绘课堂</span>
         <Badge className="ml-auto">公开分享</Badge>
       </div>
       {children}
@@ -85,14 +96,22 @@ export default async function SharePage({ params }: { params: Promise<{ slug: st
   if (!data.ok) {
     return (
       <Shell>
-        <div className="mt-8 rounded-lg border border-line bg-surface px-5 py-6">
-          <p className="text-sm font-medium text-navy-900">这个分享打不开了</p>
-          <p className="mt-1.5 text-sm leading-relaxed text-ink-soft">
-            {data.error || "链接可能已被取消，或者这段内容已经不在了。"}
-          </p>
-          <Button variant="outline" className="mt-4" asChild>
-            <Link href="/app">去做一段自己的</Link>
-          </Button>
+        {/*
+          错误态用和空态同一套结构（图标 + 一句定性 + 一句可操作的解释）：
+          "打不开了"和"还没有东西"对用户是同一类处境，长得一样才不费解。
+        */}
+        <div className="mt-8 rounded-card border border-border bg-surface shadow-card">
+          <EmptyState
+            className="py-10"
+            icon={<Link2Off className="h-5 w-5" />}
+            title="这个分享打不开了"
+            desc={data.error || "链接可能已被取消，或者这段内容已经不在了。"}
+            action={
+              <Button variant="outline" size="sm" className="mt-1" asChild>
+                <Link href="/app">去做一段自己的</Link>
+              </Button>
+            }
+          />
         </div>
       </Shell>
     );
@@ -103,32 +122,44 @@ export default async function SharePage({ params }: { params: Promise<{ slug: st
 
   return (
     <Shell>
-      <h1 className="mt-6 font-serif-cn text-2xl text-navy-900">
-        {data.title || "一段数学讲解动画"}
+      <h1 className="text-balance mt-6 font-display text-2xl font-bold tracking-tight text-fg">
+        {data.title || "一段讲解动画"}
       </h1>
-      <p className="mt-1.5 text-sm text-ink-soft">
-        {data.subtitle || "由 AI 生成分镜、Manim 确定性渲染"}
+      <p className="mt-2 text-sm text-fg-muted">
+        {data.subtitle || "由 AI 生成分镜、逐段渲染成片"}
       </p>
 
       {finalUrl ? (
-        <div className="mt-6 overflow-hidden rounded-lg border border-line bg-navy-950">
-          <video src={finalUrl} controls playsInline preload="metadata" className="aspect-video w-full" />
+        // 视频底用 `--t-video`：两套主题下都是深色，播放前后不会出现"白块闪一下"
+        <div className="mt-6 overflow-hidden rounded-card border border-border bg-video shadow-card">
+          <video
+            src={finalUrl}
+            controls
+            playsInline
+            preload="metadata"
+            className="aspect-video w-full"
+          />
         </div>
       ) : (
-        <p className="mt-6 rounded-lg border border-line bg-surface px-5 py-6 text-sm text-ink-soft">
-          这条会话还没有渲染出成片，所以暂时没有视频可看。
-        </p>
+        <div className="mt-6 rounded-card border border-border bg-surface shadow-card">
+          <EmptyState
+            className="py-8"
+            icon={<Sparkles className="h-5 w-5" />}
+            title="还没有成片"
+            desc="这条会话还没渲染出成片，所以暂时没有视频可看。"
+          />
+        </div>
       )}
 
       {segments.length ? (
         <div className="mt-6">
-          <p className="text-xs font-medium text-ink-soft">分镜</p>
-          <ul className="mt-2 divide-y divide-line rounded-md border border-line bg-surface">
+          <p className="text-xs font-medium text-fg-muted">分镜</p>
+          <ul className="mt-2 divide-y divide-border overflow-hidden rounded-inner border border-border bg-surface">
             {segments.map((s) => (
-              <li key={s.index} className="flex items-center gap-2 px-3 py-2 text-sm text-navy-900">
-                <span className="tnum w-5 shrink-0 text-xs text-ink-soft">{s.index + 1}</span>
+              <li key={s.index} className="flex items-center gap-2 px-3 py-2 text-sm text-fg">
+                <span className="tnum w-5 shrink-0 text-xs text-fg-subtle">{s.index + 1}</span>
                 <span className="min-w-0 flex-1 truncate">{s.title}</span>
-                <span className="tnum shrink-0 text-xs text-ink-soft">
+                <span className="tnum shrink-0 text-xs text-fg-muted">
                   {s.durationSec.toFixed(1)}s
                 </span>
               </li>

@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { IconButton } from "@/components/ui/icon-button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -24,6 +25,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/popover";
 import { Input, Separator } from "@/components/ui/primitives";
+import { EmptyState } from "@/components/ui/section";
 import { USE_MOCK } from "@/lib/api";
 import type { Thread } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -118,31 +120,30 @@ export function ThreadSidebar({
           // 多选时把"新建"换成批量工具条：同一块位置放两套按钮容易点错，
           // 而且这会儿用户的心思在"挑几条删掉"，不在新建。
           <div className="flex items-center gap-1">
-            <button
+            <Button
+              size="sm"
+              variant="ghost"
               onClick={() => setPicked(allPicked ? new Set() : new Set(threads.map((t) => t.id)))}
-              className="rounded px-2 py-1.5 text-xs text-ink-soft transition-colors hover:bg-canvas"
             >
               {allPicked ? "取消全选" : "全选"}
-            </button>
-            <span className="tnum text-xs text-ink-soft">已选 {picked.size}</span>
-            <button
+            </Button>
+            <span className="tnum text-xs text-fg-muted">已选 {picked.size}</span>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="ml-auto text-err hover:bg-err-soft hover:text-err"
               onClick={() => onDelete([...picked])}
               disabled={!picked.size}
-              className="ml-auto inline-flex items-center gap-1 rounded px-2 py-1.5 text-xs text-err-600 transition-colors hover:bg-err-600/10 disabled:pointer-events-none disabled:opacity-40"
             >
               <Trash2 className="h-3.5 w-3.5" />
               删除
-            </button>
-            <button
-              onClick={exitSelect}
-              className="rounded p-1.5 text-ink-soft transition-colors hover:bg-canvas"
-              aria-label="退出多选"
-            >
+            </Button>
+            <IconButton label="退出多选" size="sm" onClick={exitSelect}>
               <X className="h-3.5 w-3.5" />
-            </button>
+            </IconButton>
           </div>
         ) : (
-          <Button variant="outline" className="w-full justify-start gap-2" onClick={onNew}>
+          <Button variant="outline" className="w-full justify-start" onClick={onNew}>
             <Plus className="h-4 w-4" />
             新建讲解
           </Button>
@@ -151,17 +152,24 @@ export function ThreadSidebar({
       <Separator />
 
       <nav className="scrollbar-thin flex-1 overflow-y-auto p-2">
-        <p className="px-2 pb-1 text-xs font-medium text-ink-soft">最近</p>
+        <p className="px-2 pb-1 text-xs font-medium text-fg-subtle">最近</p>
         {threads.length === 0 ? (
           /*
            * 空态必须说清"本来就没有"还是"没连上" —— 这两件事在界面上长得一模一样，
            * 但排查方向完全不同。以前这里躺着的是预置会话，把两者都盖住了。
            */
-          <p className="px-2 py-1 text-xs leading-relaxed text-ink-soft/80">
-            {USE_MOCK
-              ? "当前是 Mock 模式，没有后端可读历史会话。"
-              : "还没有历史会话，或后端未连接。"}
-          </p>
+          /* ⚠️ 空态文案里不要出现 Mock / 后端 / 接口 这类词：用户看到的是
+             "这里怎么是空的"，不是"哪个进程没起来"。 */
+          <EmptyState
+            className="px-2 py-6"
+            icon={<MessageSquareText className="h-5 w-5" />}
+            title={USE_MOCK ? "演示模式没有历史记录" : "还没有历史会话"}
+            desc={
+              USE_MOCK
+                ? "当前是演示模式，不读取历史会话。"
+                : "新建一条讲解并发出第一条消息后，它会出现在这里；如果一直空着，可能是服务暂时不可用。"
+            }
+          />
         ) : (
           <ul className="space-y-0.5">
             {threads.map((t) => (
@@ -171,6 +179,7 @@ export function ThreadSidebar({
                     <Input
                       autoFocus
                       value={draft}
+                      aria-label="会话标题"
                       onChange={(e) => setDraft(e.target.value)}
                       onKeyDown={(e) => {
                         if (e.key === "Enter") commitRename();
@@ -180,36 +189,37 @@ export function ThreadSidebar({
                       onBlur={commitRename}
                       className="h-8"
                     />
-                    <Button
+                    <IconButton
+                      label="确认改名"
                       size="sm"
-                      variant="ghost"
-                      className="h-8 shrink-0 px-2"
+                      className="shrink-0"
                       onMouseDown={(e) => e.preventDefault()}
                       onClick={commitRename}
                     >
                       <Check className="h-3.5 w-3.5" />
-                    </Button>
+                    </IconButton>
                   </div>
                 ) : (
                   <div
                     className={cn(
-                      "flex items-center rounded-md transition-colors",
-                      t.id === activeId && !selectMode ? "bg-navy-900/5" : "hover:bg-canvas",
+                      "t-tx flex items-center rounded-control",
+                      t.id === activeId && !selectMode ? "bg-accent-soft" : "hover:bg-surface-2",
                     )}
                   >
                     {selectMode ? (
                       <button
                         onClick={() => togglePick(t.id)}
-                        className="ml-1.5 grid h-4 w-4 shrink-0 place-items-center rounded border border-line bg-surface"
+                        className="ml-1.5 grid h-4 w-4 shrink-0 place-items-center rounded border border-border-strong bg-surface"
                         aria-label={picked.has(t.id) ? "取消选择" : "选择"}
+                        aria-pressed={picked.has(t.id)}
                       >
-                        {picked.has(t.id) ? <Check className="h-3 w-3 text-brick-600" /> : null}
+                        {picked.has(t.id) ? <Check className="h-3 w-3 text-accent" /> : null}
                       </button>
                     ) : (
                       <MessageSquareText
                         className={cn(
                           "ml-2 h-4 w-4 shrink-0",
-                          t.id === activeId ? "text-brick-600" : "text-ink-soft",
+                          t.id === activeId ? "text-accent" : "text-fg-subtle",
                         )}
                       />
                     )}
@@ -222,17 +232,17 @@ export function ThreadSidebar({
                         <span
                           className={cn(
                             "truncate text-sm font-medium",
-                            t.id === activeId && !selectMode ? "text-navy-900" : "text-ink",
+                            t.id === activeId && !selectMode ? "text-accent" : "text-fg",
                           )}
                         >
                           {t.title}
                         </span>
-                        {t.pinned ? <Pin className="h-3 w-3 shrink-0 text-brick-600" /> : null}
-                        {t.shared ? <Link2 className="h-3 w-3 shrink-0 text-ink-soft" /> : null}
+                        {t.pinned ? <Pin className="h-3 w-3 shrink-0 text-accent" /> : null}
+                        {t.shared ? <Link2 className="h-3 w-3 shrink-0 text-fg-subtle" /> : null}
                       </span>
                       {/* 相对时间依赖 `Date.now()`，服务端与 hydration 可能算出不同文字 */}
                       <span
-                        className="block truncate text-xs text-ink-soft"
+                        className="block truncate text-xs text-fg-subtle"
                         suppressHydrationWarning
                       >
                         {t.subtitle ?? relative(t.updatedAt)}
@@ -245,7 +255,12 @@ export function ThreadSidebar({
                           <button
                             // 小屏常显（触摸设备没有 hover 可依赖），大屏才收起来 ——
                             // 否则手机上这个按钮永远点不到。
-                            className="mr-1 grid h-7 w-7 shrink-0 place-items-center rounded text-ink-soft opacity-100 transition-opacity hover:bg-line/60 focus-visible:opacity-100 data-[state=open]:opacity-100 md:opacity-0 md:group-hover:opacity-100"
+                            className={cn(
+                              "t-tx mr-1 grid h-7 w-7 shrink-0 place-items-center rounded-control",
+                              "text-fg-subtle hover:bg-surface-3 hover:text-fg",
+                              "opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100",
+                              "md:opacity-0 md:group-hover:opacity-100",
+                            )}
                             aria-label="更多操作"
                           >
                             <MoreHorizontal className="h-4 w-4" />
@@ -280,7 +295,7 @@ export function ThreadSidebar({
                           <DropdownMenuSeparator />
                           <DropdownMenuItem
                             onSelect={() => onDelete([t.id])}
-                            className="text-err-600 data-[highlighted]:bg-err-600/10"
+                            className="text-err data-[highlighted]:bg-err-soft"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                             删除
@@ -296,10 +311,10 @@ export function ThreadSidebar({
         )}
       </nav>
 
-      {/* 保留期限要摆在明面上：后端会按时清掉老会话，不说的话"数据凭空消失"只会被当成 bug */}
+      {/* 保留期限要摆在明面上：会话会被按时清理，不说的话"数据凭空消失"只会被当成 bug */}
       {ttlDays ? (
-        <p className="border-t border-line px-3 py-2 text-xs text-ink-soft/70">
-          会话在后端保留 {ttlDays} 天
+        <p className="border-t border-border px-3 py-2 text-xs text-fg-subtle">
+          会话最多保留 {ttlDays} 天
         </p>
       ) : null}
     </div>

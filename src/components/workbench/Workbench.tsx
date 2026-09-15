@@ -19,11 +19,12 @@ import {
 import { useStore } from "@/lib/store";
 import { abortStream, registerStream, unregisterStream } from "@/lib/streams";
 import { useLocalStorage, useMediaQuery } from "@/lib/use-ui";
-import { uid } from "@/lib/utils";
+import { cn, uid } from "@/lib/utils";
 import type { Message, PlanStep, RenderState } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, SheetContent } from "@/components/ui/dialog";
 import { Input, Textarea } from "@/components/ui/primitives";
+import { useToast } from "@/components/ui/toast";
 
 import { ArtifactPanel, type Artifact } from "./ArtifactPanel";
 import { ChatStream } from "./ChatStream";
@@ -73,8 +74,15 @@ export function Workbench({ threadId }: { threadId?: string }) {
   const [pendingDelete, setPendingDelete] = useState<string[] | null>(null);
   /** 分享链接弹窗的内容；null = 关着 */
   const [shareInfo, setShareInfo] = useState<{ id: string; url: string } | null>(null);
-  /** 一句轻提示（操作成功 / 失败），点一下消失 */
-  const [note, setNote] = useState("");
+  /**
+   * 轻提示。
+   *
+   * 原来是本地 `note` 状态 + 一小块手写的固定浮层：只能显示一条、位置写死在组件里、
+   * 每条提示的生命周期得自己在每个调用点管。现在换成全局 Toast ——
+   * 多条可以叠、定时器由 Provider 统一回收，这里只剩"说一句"这件事。
+   * Provider 挂在根布局上，所以落地页、设置页将来也能直接用。
+   */
+  const toast = useToast();
 
   /** 右栏当前打开的产物详情；null = 停在列表 */
   const [artifactOpenId, setArtifactOpenId] = useState<string | null>(null);
@@ -302,7 +310,7 @@ export function Workbench({ threadId }: { threadId?: string }) {
       if (!r.ok) throw new Error(r.error || "改名失败");
     } catch (err) {
       patchThreadLocal(id, { title: before });
-      setNote(`改名失败：${err instanceof Error ? err.message : String(err)}`);
+      toast(`改名失败：${err instanceof Error ? err.message : String(err)}`);
     }
   }
 
@@ -314,7 +322,7 @@ export function Workbench({ threadId }: { threadId?: string }) {
       if (!r.ok) throw new Error(r.error || "置顶失败");
     } catch (err) {
       patchThreadLocal(id, { pinned: before });
-      setNote(`置顶失败：${err instanceof Error ? err.message : String(err)}`);
+      toast(`置顶失败：${err instanceof Error ? err.message : String(err)}`);
     }
   }
 
@@ -326,7 +334,7 @@ export function Workbench({ threadId }: { threadId?: string }) {
       setShareInfo({ id, url: `${window.location.origin}/share/${r.slug}` });
       patchThreadLocal(id, { shared: true });
     } catch (err) {
-      setNote(`分享失败：${err instanceof Error ? err.message : String(err)}`);
+      toast(`分享失败：${err instanceof Error ? err.message : String(err)}`);
     }
   }
 
@@ -336,9 +344,9 @@ export function Workbench({ threadId }: { threadId?: string }) {
       if (!r.ok) throw new Error(r.error || "取消分享失败");
       patchThreadLocal(id, { shared: false });
       setShareInfo(null);
-      setNote("已取消分享，原来的链接立即失效");
+      toast("已取消分享，原来的链接立即失效");
     } catch (err) {
-      setNote(`取消分享失败：${err instanceof Error ? err.message : String(err)}`);
+      toast(`取消分享失败：${err instanceof Error ? err.message : String(err)}`);
     }
   }
 
@@ -361,9 +369,9 @@ export function Workbench({ threadId }: { threadId?: string }) {
       // 正在看的这条被删掉了 → 回入口，别停在一个已经不存在的会话上
       if (threadId && done.includes(threadId)) router.push("/app");
     }
-    setNote(
+    toast(
       failed.length
-        ? `${failed.length} 条没删掉（后端没起？）`
+        ? `${failed.length} 条没删掉，稍后重试`
         : `已删除 ${done.length} 条会话及其渲染产物`,
     );
   }
@@ -665,7 +673,7 @@ export function Workbench({ threadId }: { threadId?: string }) {
   );
 
   return (
-    <div className="flex h-dvh flex-col bg-canvas">
+    <div className="flex h-dvh flex-col bg-bg">
       <TopBar
         title={title}
         navOpen={navOpen}
@@ -678,8 +686,29 @@ export function Workbench({ threadId }: { threadId?: string }) {
       />
 
       <div className="flex min-h-0 flex-1">
-        {navOpen && (
-          <aside className="hidden w-72 shrink-0 border-r border-line md:block">
+        {/*
+          左栏：收起 / 展开走**宽度动画**，不再条件渲染（条件渲染没有过渡可言）。
+
+          ⚠️ 关键是"外层裁切 + 内层定宽"，不能直接动侧栏自己的宽度：
+          若让侧栏从 288px 过渡到 0，里面的文字会**一路折行重排**，
+          看着像被挤压，而不是被收起。
+          现在是外层宽度 `0 ↔ 288`（`.t-collapse` 只过渡 width）且 `overflow-hidden`，
+          内层恒为 288px —— 内容不动，只是被"拉出来 / 推回去"。
+
+          ⚠️ 分隔线画在**内层**：外层为 0 宽时，内层连同边框一起被裁掉，
+          不会在边上留下一条 1px 的孤线（画在外层就会留）。
+
+          ⚠️ 收起时必须加 `inert`：0 宽 + `overflow-hidden` 只是"看不见"，
+          里面的按钮仍然在 Tab 焦点路径上 —— 键盘用户会跳进一个看不见的面板。
+        */}
+        <aside
+          className={cn(
+            "t-collapse hidden shrink-0 overflow-hidden md:block",
+            navOpen ? "w-72" : "w-0",
+          )}
+          inert={!navOpen}
+        >
+          <div className="h-full w-72 border-r border-border">
             <ThreadSidebar
               threads={threads}
               activeId={threadId ?? ""}
@@ -691,8 +720,8 @@ export function Workbench({ threadId }: { threadId?: string }) {
               onShare={(id) => void shareRemote(id)}
               onDelete={(ids) => setPendingDelete(ids)}
             />
-          </aside>
-        )}
+          </div>
+        </aside>
 
         {/* 中栏最小宽度 530px：不按比例无限压缩，否则两侧全展开时对话区会被挤成一条 */}
         <main className="flex min-w-0 flex-1 flex-col md:min-w-[530px]">
@@ -704,22 +733,17 @@ export function Workbench({ threadId }: { threadId?: string }) {
              */
             <div className="relative flex flex-1 flex-col items-center justify-center overflow-hidden px-4 pb-20">
               {/*
-                一层极淡的暖色光晕。整页是冷灰白，一片平色容易显"素"；
-                这层用品牌砖橙的最浅一档（brick-100）晕开，做出层次但不抢戏 ——
-                太明显的渐变会跟项目的编辑网格风格打架。
+                一层极淡的品牌光晕。整页是近白的暖底，一片平色容易显"素"；
+                光晕在空屏上给一个视觉落点，但浓度压得很低 ——
+                空屏是"等你开口"的地方，背景不该抢戏。
+                走 `t-glow` 工具类而不是内联写死颜色：暗色档会自动换成提亮后的光晕，
+                内联写死会在暗色下变成一块发亮的脏斑。
               */}
-              <div
-                aria-hidden
-                className="pointer-events-none absolute inset-0"
-                style={{
-                  background:
-                    "radial-gradient(58% 46% at 50% 40%, var(--color-brick-100) 0%, transparent 72%)",
-                }}
-              />
+              <div aria-hidden className="t-glow pointer-events-none absolute inset-0" />
 
               <div className="relative flex flex-col items-center">
                 {/* 品牌记号：与顶栏 logo 同一个形状。空屏上它承担"这是哪儿" */}
-                <span className="mb-5 grid h-12 w-12 place-items-center rounded-xl bg-navy-900 text-white shadow-[0_6px_20px_rgba(18,38,63,0.18)]">
+                <span className="t-grad mb-5 grid h-12 w-12 place-items-center rounded-inner text-accent-fg">
                   <Sparkles className="h-6 w-6" />
                 </span>
                 {/*
@@ -729,7 +753,7 @@ export function Workbench({ threadId }: { threadId?: string }) {
                   它回答的是"我在这儿该做的第一件事是什么"。
                   ⚠️ 只放一句，**不要第二行说明** —— 那正是上一版被用户点名去掉的东西。
                 */}
-                <h2 className="mb-8 font-serif-cn text-3xl text-navy-900">
+                <h2 className="mb-8 font-display text-3xl text-fg">
                   把知识点讲成一段动画
                 </h2>
                 <div className="w-full max-w-[53rem]">{composer(true)}</div>
@@ -757,16 +781,34 @@ export function Workbench({ threadId }: { threadId?: string }) {
           )}
         </main>
 
-        {/* 空会话右栏没有任何可看的东西：与其摆一块写着"还没有成片"的空白面板，
-            不如整块不渲染 —— 那块空白正是"感觉很空"的一部分 */}
-        {previewOpen && messages.length > 0 && (
-          <aside className="hidden w-[375px] shrink-0 border-l border-line lg:block">
-            <ArtifactPanel
-              artifacts={artifacts}
-              resetKey={threadId ?? "draft"}
-              activeId={artifactOpenId}
-              onActiveChange={setArtifactOpenId}
-            />
+        {/*
+          右栏：动画做法与左栏一致（外层裁切 + 内层定宽），另外两点不同：
+
+          ⚠️ 1. 内层靠**右**贴齐（`ml-auto`）：右栏展开应该像"从右边拉开窗帘"，
+                内容锚在右边缘不动。锚左边的话，面板里的文字会跟着一起平移。
+          ⚠️ 2. `messages.length > 0` 之外仍不渲染 —— 空会话右栏没有任何可看的东西，
+                与其摆一块写着"还没有成片"的空白面板，不如整块不渲染。
+                这一条是刻意的，别为了动画让它常驻。
+          ⚠️ 3. 展开后**保持挂载**（只收宽度）：面板里的播放器静音（`defaultMuted: !stage0`），
+                所以不会出声；好处是收起再展开时播放进度、选中项都还在，
+                不是每次都从头初始化。
+        */}
+        {messages.length > 0 && (
+          <aside
+            className={cn(
+              "t-collapse hidden shrink-0 overflow-hidden lg:block",
+              previewOpen ? "w-[375px]" : "w-0",
+            )}
+            inert={!previewOpen}
+          >
+            <div className="ml-auto h-full w-[375px] border-l border-border">
+              <ArtifactPanel
+                artifacts={artifacts}
+                resetKey={threadId ?? "draft"}
+                activeId={artifactOpenId}
+                onActiveChange={setArtifactOpenId}
+              />
+            </div>
           </aside>
         )}
       </div>
@@ -824,11 +866,11 @@ export function Workbench({ threadId }: { threadId?: string }) {
           <DialogHeader>
             <DialogTitle>删除 {pendingDelete?.length ?? 0} 条会话？</DialogTitle>
           </DialogHeader>
-          <p className="text-xs leading-relaxed text-ink-soft">
+          <p className="text-xs leading-relaxed text-fg-muted">
             会连同这些会话的对话记录与
-            <strong className="mx-0.5 font-medium text-ink">已渲染的视频</strong>
+            <strong className="mx-0.5 font-medium text-fg">已渲染的视频</strong>
             一起删掉（成片、分段、增量缓存），
-            <strong className="mx-0.5 font-medium text-ink">不可撤销</strong>。
+            <strong className="mx-0.5 font-medium text-fg">不可撤销</strong>。
           </p>
           <div className="mt-3 flex justify-end gap-2">
             <Button variant="ghost" size="sm" onClick={() => setPendingDelete(null)}>
@@ -851,9 +893,9 @@ export function Workbench({ threadId }: { threadId?: string }) {
           <DialogHeader>
             <DialogTitle>分享链接</DialogTitle>
           </DialogHeader>
-          <p className="text-xs leading-relaxed text-ink-soft">
+          <p className="text-xs leading-relaxed text-fg-muted">
             拿到链接的人可以打开看这条会话的
-            <strong className="mx-0.5 font-medium text-ink">成片和分段</strong>
+            <strong className="mx-0.5 font-medium text-fg">成片和分段</strong>
             ，不需要登录。对话内容不会出现在分享页上。
           </p>
           <div className="mt-3 flex items-center gap-2">
@@ -867,7 +909,7 @@ export function Workbench({ threadId }: { threadId?: string }) {
               size="sm"
               onClick={() => {
                 void navigator.clipboard?.writeText(shareInfo?.url ?? "");
-                setNote("链接已复制");
+                toast("链接已复制");
               }}
             >
               复制
@@ -888,16 +930,6 @@ export function Workbench({ threadId }: { threadId?: string }) {
         </DialogContent>
       </Dialog>
 
-      {/* 轻提示：点一下消失，不打断手头的操作 */}
-      {note ? (
-        <button
-          onClick={() => setNote("")}
-          className="anim-pop fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-md bg-navy-900 px-3 py-2 text-xs text-white shadow-lg"
-        >
-          {note}
-        </button>
-      ) : null}
-
       {/* 整分镜替换：让模型重新输出一个完整分镜，而不是文本 patch */}
       <Dialog
         open={Boolean(reviseTarget)}
@@ -907,7 +939,7 @@ export function Workbench({ threadId }: { threadId?: string }) {
           <DialogHeader>
             <DialogTitle>让 AI 改第 {(reviseTarget?.index ?? 0) + 1} 个分镜</DialogTitle>
           </DialogHeader>
-          <p className="text-xs text-ink-soft">
+          <p className="text-xs text-fg-muted">
             会重新生成这一整个分镜（不是改一句话），其余分镜保持不变、也不会重新渲染。
           </p>
           <Textarea

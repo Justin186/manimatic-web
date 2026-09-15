@@ -61,17 +61,17 @@ export function ThinkingIndicator({ message }: Props) {
   const seconds = Math.max(0, Math.round((now - startedAt) / 1000));
 
   return (
-    <div className="anim-rise overflow-hidden rounded-md border border-line bg-canvas">
+    <div className="anim-rise overflow-hidden rounded-inner border border-border bg-surface-2">
       <button
         type="button"
         onClick={() => setManual(!open)}
         aria-expanded={open}
-        className="flex w-full items-center gap-1.5 px-2.5 py-1.5 text-left text-xs text-ink-soft transition-colors hover:text-navy-900"
+        className="t-tx flex w-full items-center gap-1.5 px-2.5 py-1.5 text-left text-xs text-fg-muted hover:text-fg"
       >
-        <Brain className={cn("h-3.5 w-3.5 shrink-0", live && "text-brick-600")} />
+        <Brain className={cn("h-3.5 w-3.5 shrink-0", live && "text-accent")} />
         {live ? (
           <>
-            <span className="text-brick-700">正在思考…</span>
+            <span className="text-accent">正在思考…</span>
             <span className="tnum">已 {seconds}s</span>
           </>
         ) : (
@@ -79,7 +79,7 @@ export function ThinkingIndicator({ message }: Props) {
         )}
         <span className="ml-auto flex items-center gap-1">
           {/* 字数一直显示：它也是"这一轮模型想了多少"的一个可读信号 */}
-          <span className="tnum text-ink-soft/70">
+          <span className="tnum text-fg-subtle">
             {seconds}s · 共 {thinking.length} 字
           </span>
           <ChevronRight
@@ -92,16 +92,14 @@ export function ThinkingIndicator({ message }: Props) {
         <div
           // 固定高度（约 22rem）+ 内部滚动：这是"完整内容用滚轮看"的关键 ——
           // 不设高度的话一万多字会把整条对话流撑得极长，反而更难读。
-          className="scrollbar-thin max-h-[22rem] overflow-y-auto border-t border-line/70 px-2.5 py-2"
+          className="scrollbar-thin max-h-[22rem] overflow-y-auto border-t border-border px-2.5 py-2"
           onScroll={(e) => {
             const el = e.currentTarget;
             stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 24;
           }}
         >
           {/* 全文，不截断 */}
-          <p className="whitespace-pre-wrap text-xs leading-5 text-ink-soft/90">
-            {thinking}
-          </p>
+          <p className="whitespace-pre-wrap text-xs leading-5 text-fg-muted">{thinking}</p>
           <div ref={endRef} />
         </div>
       ) : null}

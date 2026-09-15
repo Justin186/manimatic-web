@@ -5,6 +5,7 @@ import { Check, Copy, Download, Link2, Send } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/primitives";
 
 type Props = {
   onClose: () => void;
@@ -55,42 +56,50 @@ export function ShareDialog({ onClose, title, finalUrl, shareUrl }: Props) {
           <DialogTitle>分享这段讲解</DialogTitle>
         </DialogHeader>
 
-        <p className="truncate text-sm text-ink-soft" title={title}>
+        <p className="truncate text-sm text-fg-muted" title={title}>
           {title}
         </p>
 
-        <label className="mt-3 block text-xs font-medium text-ink-soft">分享链接</label>
+        <label className="mt-3 block text-xs font-medium text-fg-muted" htmlFor="share-url">
+          分享链接
+        </label>
         <div className="mt-1.5 flex items-center gap-2">
-          <input
+          <Input
+            id="share-url"
             readOnly
             value={url}
             onFocus={(e) => e.currentTarget.select()}
-            className="tnum h-10 min-w-0 flex-1 rounded-md border border-line bg-canvas px-3 text-xs text-ink outline-none focus:border-brick-600"
+            // 只读字段用内嵌面色：它不该看起来像个可以随手改的输入框
+            className="tnum h-10 min-w-0 flex-1 bg-surface-2 text-xs"
           />
-          <Button size="sm" onClick={copy} className="h-10 shrink-0 gap-1.5">
+          <Button size="md" onClick={copy} className="shrink-0">
             {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
             {copied ? "已复制" : "复制"}
           </Button>
         </div>
-        <p className="mt-1.5 text-xs text-ink-soft">拿到链接的人可以直接观看，无需登录。</p>
+        <p className="mt-1.5 text-xs text-fg-muted">拿到链接的人可以直接观看，无需登录。</p>
 
-        <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-line pt-4">
+        <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-border pt-4">
           {finalUrl ? (
-            <Button size="sm" variant="outline" asChild className="gap-1.5">
+            <Button size="sm" variant="outline" asChild>
               <a href={finalUrl} download>
                 <Download className="h-4 w-4" />
                 下载 MP4
               </a>
             </Button>
           ) : (
-            <span className="flex items-center gap-1.5 text-xs text-ink-soft">
+            <span className="flex items-center gap-1.5 text-xs text-fg-muted">
               <Download className="h-3.5 w-3.5" />
               整片合成完成后可下载
             </span>
           )}
 
-          <span className="ml-auto flex items-center gap-1.5 text-xs text-ink-soft">
-            {copied ? <Link2 className="h-3.5 w-3.5 text-ok-600" /> : <Send className="h-3.5 w-3.5" />}
+          <span className="ml-auto flex items-center gap-1.5 text-xs text-fg-muted">
+            {copied ? (
+              <Link2 className="h-3.5 w-3.5 text-ok" />
+            ) : (
+              <Send className="h-3.5 w-3.5" />
+            )}
             {copied ? "链接已复制到剪贴板" : "可粘贴到微信 / 邮件 / 文档"}
           </span>
         </div>

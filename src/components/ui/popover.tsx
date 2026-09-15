@@ -8,6 +8,12 @@ import { cn } from "@/lib/utils";
 
 /* ---------------- Tooltip ---------------- */
 
+/**
+ * Tooltip 用**反色面**（`--t-inverse`）。
+ *
+ * 注意反色面在暗色模式下会"反过来变亮"：亮色档它是深底浅字，暗色档它是浅底深字。
+ * 如果写死 `bg-*` 深色，暗色主题下这条提示会直接糊进页面背景。
+ */
 function Tooltip({
   label,
   children,
@@ -26,7 +32,7 @@ function Tooltip({
           <TooltipPrimitive.Content
             side={side}
             sideOffset={6}
-            className="anim-pop z-50 rounded-md bg-navy-900 px-2 py-1 text-xs text-white shadow-lg"
+            className="anim-pop z-50 rounded-control bg-inverse px-2 py-1 text-xs text-inverse-fg shadow-raised"
           >
             {label}
           </TooltipPrimitive.Content>
@@ -52,7 +58,7 @@ function DropdownMenuContent({
         align={align}
         sideOffset={6}
         className={cn(
-          "anim-pop z-50 min-w-44 overflow-hidden rounded-md border border-line bg-surface p-1 shadow-lg",
+          "anim-pop z-50 min-w-44 overflow-hidden rounded-inner border border-border bg-surface p-1 shadow-pop",
           className,
         )}
         {...props}
@@ -68,7 +74,8 @@ function DropdownMenuItem({
   return (
     <DropdownMenuPrimitive.Item
       className={cn(
-        "flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm text-navy-900 outline-none transition-colors data-[highlighted]:bg-canvas",
+        "flex cursor-pointer items-center gap-2 rounded-control px-2 py-1.5 text-sm text-fg outline-none",
+        "t-tx data-[highlighted]:bg-surface-2",
         className,
       )}
       {...props}
@@ -82,14 +89,22 @@ function DropdownMenuLabel({
 }: React.ComponentProps<typeof DropdownMenuPrimitive.Label>) {
   return (
     <DropdownMenuPrimitive.Label
-      className={cn("px-2 py-1.5 text-xs font-medium text-ink-soft", className)}
+      className={cn("px-2 py-1.5 text-xs font-medium text-fg-subtle", className)}
       {...props}
     />
   );
 }
 
-function DropdownMenuSeparator({ className, ...props }: React.ComponentProps<typeof DropdownMenuPrimitive.Separator>) {
-  return <DropdownMenuPrimitive.Separator className={cn("my-1 h-px bg-line", className)} {...props} />;
+function DropdownMenuSeparator({
+  className,
+  ...props
+}: React.ComponentProps<typeof DropdownMenuPrimitive.Separator>) {
+  return (
+    <DropdownMenuPrimitive.Separator
+      className={cn("my-1 h-px bg-border", className)}
+      {...props}
+    />
+  );
 }
 
 export {

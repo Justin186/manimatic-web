@@ -216,7 +216,7 @@ export function VideoPlayer({
       onMouseLeave={() => setHovered(false)}
       className={cn(
         // 尺寸由容器自己撑：内部两个 video 都是绝对定位叠放的（双缓冲）
-        "group/player relative overflow-hidden bg-navy-950",
+        "group/player relative overflow-hidden bg-video",
         // 播放器不是可选中的文本区：不加这行，拖拽进度条/画面时会把周围的
         // 标题、时间、按钮文字一起框选起来，还会出现拖拽幽灵图
         "select-none",
@@ -243,7 +243,7 @@ export function VideoPlayer({
         切换用 **z-index 而不是 opacity**：活跃那路压在上面，另一路留在下面垫着。
         这样万一活跃那路还没吐出第一帧（元素未渲染时是透明的），透出来的是下层
         上一段的最后一帧，而不是黑底 —— 肉眼看到的就是完全连续的画面。
-        两路都不设背景色，让容器的 navy-950 在最底下兜底。
+        两路都不设背景色，让容器的 `--t-video` 在最底下兜底。
 
         切换之所以不用换 `src`：`load()` 会**立即清空**正在看的画面（规范行为），
         那正是黑帧的来源。换 z-index 则一个像素都不用重画。
@@ -275,7 +275,7 @@ export function VideoPlayer({
 
       {/* 等待下一段渲染完成 */}
       {waiting && (
-        <div className="pointer-events-none absolute inset-0 z-20 grid place-items-center bg-navy-950/70 text-center">
+        <div className="pointer-events-none absolute inset-0 z-20 grid place-items-center bg-black/70 text-center">
           <div>
             <Loader2 className="mx-auto h-5 w-5 animate-spin text-white/80" />
             <p className="tnum mt-2 text-xs text-white/85">等待第 {waitingFor} 分镜渲染完成…</p>
@@ -292,7 +292,7 @@ export function VideoPlayer({
           type="button"
           onClick={toggle}
           aria-label="播放"
-          className="absolute left-1/2 top-1/2 z-20 grid h-14 w-14 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-navy-950/55 text-white backdrop-blur transition-colors hover:bg-navy-950/75"
+          className="t-tx absolute left-1/2 top-1/2 z-20 grid h-14 w-14 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-pill bg-black/55 text-white backdrop-blur hover:bg-black/75"
         >
           <Play className="ml-0.5 h-6 w-6" />
         </button>
@@ -309,7 +309,7 @@ export function VideoPlayer({
           chromeVisible ? "opacity-100" : "pointer-events-none opacity-0",
         )}
       >
-        <span className="pointer-events-none mr-auto max-w-[60%] truncate rounded bg-navy-950/55 px-2 py-1 text-xs text-white/90 backdrop-blur">
+        <span className="pointer-events-none mr-auto max-w-[60%] truncate rounded-control bg-black/55 px-2 py-1 text-xs text-white/90 backdrop-blur">
           {title}
         </span>
         {onOpenDetail && (
@@ -318,7 +318,7 @@ export function VideoPlayer({
             onClick={onOpenDetail}
             aria-label="查看详情"
             title="查看详情"
-            className="grid h-8 w-8 place-items-center rounded bg-navy-950/55 text-white/90 backdrop-blur transition-colors hover:bg-navy-950/80"
+            className="t-tx grid h-8 w-8 place-items-center rounded-control bg-black/55 text-white/90 backdrop-blur hover:bg-black/80"
           >
             <Info className="h-4 w-4" />
           </button>
@@ -328,7 +328,7 @@ export function VideoPlayer({
           onClick={() => setShareOpen(true)}
           aria-label="分享"
           title="分享 / 下载"
-          className="grid h-8 w-8 place-items-center rounded bg-navy-950/55 text-white/90 backdrop-blur transition-colors hover:bg-navy-950/80"
+          className="t-tx grid h-8 w-8 place-items-center rounded-control bg-black/55 text-white/90 backdrop-blur hover:bg-black/80"
         >
           <Share2 className="h-4 w-4" />
         </button>
@@ -337,7 +337,7 @@ export function VideoPlayer({
       {/* 底部控件层：进度条 + 时间 + 倍速 + 音量 + 全屏 */}
       <div
         className={cn(
-          "absolute inset-x-0 bottom-0 z-30 bg-gradient-to-t from-navy-950/85 to-transparent px-3 pb-2 pt-6 transition-opacity duration-200",
+          "absolute inset-x-0 bottom-0 z-30 bg-gradient-to-t from-black/85 to-transparent px-3 pb-2 pt-6 transition-opacity duration-200",
           chromeVisible ? "opacity-100" : "pointer-events-none opacity-0",
         )}
       >
@@ -428,7 +428,7 @@ export function VideoPlayer({
                     )}
                   >
                     <span className="tnum">{s}×</span>
-                    {s === speed && <Check className="h-3.5 w-3.5 text-brick-500" />}
+                    {s === speed && <Check className="h-3.5 w-3.5 text-accent" />}
                   </button>
                 ))}
               </div>

@@ -1,0 +1,1250 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>智绘课堂 · UI 设计稿</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link
+  href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@500;600;700&family=Noto+Sans+SC:wght@100..900&display=swap"
+  rel="stylesheet"
+/>
+<!--
+  ============================================================================
+  智绘课堂 · UI 设计稿（单文件）
+  ----------------------------------------------------------------------------
+  · 除一份字体外**完全自包含**：没有图片 / 脚本 / 视频引用，可直接双击打开或转发。
+  · 视频画面为**内联 SVG 示意图**（一节导数的切线动画），不是真实播放器 ——
+    它只负责交代"深色画面在浅色界面里的对比关系"，不代表最终渲染效果。
+  · 字体：优先 Google Fonts 的思源宋体（展示级）/ 思源黑体（功能级与正文）。
+    线上版本用的是同两个，所以设计稿能反映真实字重（含 550 这类中间档）。
+    离线或被墙时自动回落到系统栈 —— 功能不受影响，只是字重退化成
+    Regular / Bold 两档（系统中文栈只有这两个字重，550 会被吸附成 Bold）。
+  · 令牌值与 src/app/globals.css 一一对应，改设计稿前请先改那边。
+  ============================================================================
+-->
+<style>
+/* ==========================================================================
+   1 · 设计令牌
+   --------------------------------------------------------------------------
+   亮暗两档**故意不是同一套中性色**：
+     亮色 = 纯中性灰（不偏黄也不偏蓝）+ 近黑字 + 小面积橙
+     暗色 = 暖调深色（深暖棕黑 + 提亮后的橙）
+   ========================================================================== */
+:root {
+  /* 面 —— 纯中性灰 */
+  --t-bg: #fafafa;
+  --t-surface: #ffffff;
+  --t-surface-2: #f2f2f3;
+  --t-surface-3: #e9e9eb;
+  /* 线 */
+  --t-border: #e6e6e8;
+  --t-border-strong: #d2d2d6;
+  /* 字 —— 近黑，不纯黑也不带色相 */
+  --t-fg: #1a1a1c;
+  --t-fg-muted: #63636a;
+  --t-fg-subtle: #94949c;
+  /* 品牌 */
+  --t-accent: #cf5a34;
+  --t-accent-hover: #b74a28;
+  --t-accent-fg: #ffffff;
+  --t-accent-soft: #fbeae2;
+  --t-accent-faint: #fdf5f1;
+  --t-accent-2: #a9663a;
+  --t-accent-2-soft: #f6e9dd;
+  /* 状态 */
+  --t-ok: #2f7a5a;
+  --t-ok-soft: #e8f1ee;
+  --t-warn: #b8892b;
+  --t-warn-soft: #faf3e2;
+  --t-err: #e5484d;
+  --t-err-soft: #fdecec;
+  /* 特殊面 */
+  --t-inverse: #1f1f23;
+  --t-inverse-fg: #fafafa;
+  --t-scrim: rgba(20, 20, 22, 0.45);
+  --t-video: #17171a;
+  /* 结构面：对话气泡 / 分镜序号。
+     ⚠️ 名字里的 solid 指"实心填充"，不指深浅 —— 亮色档它是最浅一档的**品牌色**，
+        配近黑字（对比度靠字色，不靠底色）。 */
+  --t-solid: #fbeae2;
+  --t-solid-fg: #1a1a1c;
+  --t-focus: rgba(207, 90, 52, 0.32);
+  /* 圆角 */
+  --t-radius-control: 10px;
+  --t-radius-inner: 12px;
+  --t-radius-card: 16px;
+  --t-radius-pill: 999px;
+  /* 阴影 —— 中性黑。带色相的投影（暖棕 / 藏青）会立刻让中性灰偏色 */
+  --t-shadow-1: 0 1px 2px rgba(20, 20, 22, 0.05), 0 6px 18px -10px rgba(20, 20, 22, 0.13);
+  --t-shadow-2: 0 2px 6px rgba(20, 20, 22, 0.07), 0 18px 40px -18px rgba(20, 20, 22, 0.22);
+  --t-shadow-3: 0 30px 64px -24px rgba(20, 20, 22, 0.28);
+  --t-shadow-accent: 0 10px 28px -12px rgba(207, 90, 52, 0.24);
+  /* 光晕 / 渐变 —— 中性灰底上不铺大面积暖光，只留一丝品牌色 + 极淡中性渐变 */
+  --t-hero-glow:
+    radial-gradient(50% 46% at 46% -8%, rgba(207, 90, 52, 0.05), transparent 68%),
+    radial-gradient(34% 32% at 90% 16%, rgba(20, 20, 22, 0.03), transparent 72%);
+  --t-accent-grad: linear-gradient(135deg, #cf5a34 0%, #e0784a 55%, #c98a3c 120%);
+  /* 字体
+     ⚠️ 无衬线这一档 `Noto Sans SC` **必须排在最前**：排在系统字体之后时，
+        Windows 会命中微软雅黑，而它只有 Regular/Bold 两个字重，
+        501~699 全部被吸附成 Bold —— "比 medium 稍微粗一点"就表达不出来。 */
+  --t-font-display: "Noto Serif SC", "Source Han Serif SC", "Songti SC", "SimSun", serif;
+  --t-font-heading: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  --t-font-body: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  /* 动效 */
+  --t-dur-fast: 140ms;
+  --t-dur-base: 220ms;
+  --t-dur-slow: 320ms;
+  --t-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* ==========================================================================
+   2 · 基础
+   ========================================================================== */
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--t-bg);
+  color: var(--t-fg);
+  font-family: var(--t-font-body);
+  font-size: 15px;
+  line-height: 1.7;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ==========================================================================
+   3 · 主题切换（纯 CSS，无脚本）
+   --------------------------------------------------------------------------
+   暗色令牌挂在 `.page` 上而不是 <html> 上，这样切换可以完全用 CSS 完成：
+   一个隐藏的 checkbox 通过兄弟选择器给 `.page` 换一整套令牌。
+
+   为什么不用 JS 给 <html> 加 class：这份文件会被上传到飞书，
+   预览器里脚本不保证执行 —— 能用 CSS 表达的东西就不要依赖脚本。
+   ========================================================================== */
+
+.page {
+  min-height: 100dvh;
+  background: var(--t-bg);
+  color: var(--t-fg);
+}
+
+/* 开关本体不出现，点击由 label 承担 */
+.tswitch {
+  position: absolute;
+  width: 0;
+  height: 0;
+  margin: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/*
+ * 暗色档：只覆盖发生变化的令牌。
+ * 圆角、字体、时长、缓动沿用亮色档 —— 主题切换不该改变形态。
+ * ⚠️ 与 globals.css 的 `.dark` 档保持一致。
+ */
+.tswitch:checked ~ .page {
+  color-scheme: dark;
+
+  --t-bg: #17130f;
+  --t-surface: #211b16;
+  --t-surface-2: #2b241d;
+  --t-surface-3: #352c24;
+  --t-border: #3a3128;
+  --t-border-strong: #4d4133;
+  --t-fg: #f6f0e8;
+  --t-fg-muted: #b3a490;
+  --t-fg-subtle: #87765f;
+  --t-accent: #e8744f;
+  --t-accent-hover: #f2855f;
+  --t-accent-soft: rgba(232, 116, 79, 0.16);
+  --t-accent-faint: rgba(232, 116, 79, 0.07);
+  --t-accent-2: #d99a5c;
+  --t-accent-2-soft: rgba(217, 154, 92, 0.14);
+  --t-ok: #7fb07f;
+  --t-ok-soft: rgba(127, 176, 127, 0.14);
+  --t-warn: #e0ab5c;
+  --t-warn-soft: rgba(224, 171, 92, 0.14);
+  --t-err: #f2686d;
+  --t-err-soft: rgba(242, 104, 109, 0.14);
+  --t-inverse: #f6f0e8;
+  --t-inverse-fg: #241e18;
+  /* 结构面在暗色档要比页面底**亮一档**（#17130f → #3b3129），
+     否则它会糊进背景里彻底消失；取太亮又会反过来成为整屏最亮的块 */
+  --t-solid: #3b3129;
+  --t-solid-fg: #f6f0e8;
+  --t-scrim: rgba(0, 0, 0, 0.62);
+  --t-video: #0d0a07;
+  --t-focus: rgba(232, 116, 79, 0.42);
+  --t-hero-glow:
+    radial-gradient(50% 46% at 46% -8%, rgba(232, 116, 79, 0.12), transparent 68%),
+    radial-gradient(34% 32% at 90% 16%, rgba(217, 154, 92, 0.09), transparent 72%);
+  --t-accent-grad: linear-gradient(135deg, #e8744f 0%, #f2855f 55%, #d99a5c 120%);
+  --t-shadow-1: 0 1px 2px rgba(0, 0, 0, 0.45), 0 10px 24px -12px rgba(0, 0, 0, 0.55);
+  --t-shadow-2: 0 2px 6px rgba(0, 0, 0, 0.5), 0 20px 44px -18px rgba(0, 0, 0, 0.62);
+  --t-shadow-3: 0 28px 68px -24px rgba(0, 0, 0, 0.78);
+  --t-shadow-accent: 0 10px 30px -12px rgba(232, 116, 79, 0.3);
+}
+
+/*
+ * 让浏览器的**画布**（滚动到底继续 overscroll 的那片区域）与原生控件也跟随主题。
+ * ⚠️ 这是一条渐进增强规则：` :has() ` 不被支持时整条被丢弃，其余部分照常工作。
+ */
+html:has(.tswitch:checked) {
+  background: #17130f;
+  color-scheme: dark;
+}
+
+/* 右下角常驻的主题切换。做成固定定位而不是放在文档头 ——
+   翻到页面中段想看暗色效果时，不该还得先滚回顶部。 */
+.theme-fab {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 20;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 14px;
+  cursor: pointer;
+  border: 1px solid var(--t-border-strong);
+  border-radius: var(--t-radius-pill);
+  background: var(--t-surface);
+  color: var(--t-fg-muted);
+  font-size: 13px;
+  box-shadow: var(--t-shadow-2);
+  transition: color var(--t-dur-base) var(--t-ease-out),
+              background-color var(--t-dur-base) var(--t-ease-out);
+}
+.theme-fab:hover { color: var(--t-fg); background: var(--t-surface-2); }
+.theme-fab__light,
+.theme-fab__dark { display: inline-flex; align-items: center; gap: 6px; }
+.theme-fab__dark { display: none; }
+.tswitch:checked ~ .page .theme-fab__light { display: none; }
+.tswitch:checked ~ .page .theme-fab__dark { display: inline-flex; }
+
+h1, h2, h3, h4 { margin: 0; font-family: var(--t-font-heading); font-weight: 600; line-height: 1.35; }
+p { margin: 0; }
+ul, ol { margin: 0; padding: 0; list-style: none; }
+dl, dd, dt { margin: 0; }
+figure { margin: 0; }
+code { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 0.92em; color: var(--t-accent-2); }
+button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+input, textarea { font: inherit; color: inherit; }
+textarea { resize: none; }
+
+/* 图标：内联 sprite + <use>，无外部请求 */
+.sprite { position: absolute; width: 0; height: 0; overflow: hidden; }
+.icon {
+  width: 1em; height: 1em; flex: none; display: block; font-size: 15px;
+  stroke: currentColor; fill: none;
+  stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+}
+
+.i12 { font-size: 12px; } .i13 { font-size: 13px; } .i14 { font-size: 14px; }
+.i16 { font-size: 16px; } .i18 { font-size: 18px; } .i20 { font-size: 20px; } .i24 { font-size: 24px; }
+
+.tnum { font-variant-numeric: tabular-nums; }
+.display { font-family: var(--t-font-display); }
+
+/* ==========================================================================
+   3 · 文档骨架
+   ========================================================================== */
+.doc { max-width: 1080px; margin: 0 auto; padding: 0 24px 72px; }
+
+.doc__head { padding: 56px 0 40px; border-bottom: 1px solid var(--t-border); }
+.eyebrow { font-size: 12px; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; color: var(--t-accent); }
+.doc__title { font-family: var(--t-font-display); font-size: 40px; font-weight: 700; letter-spacing: -0.01em; margin-top: 10px; text-wrap: balance; }
+.doc__lead { margin-top: 14px; max-width: 62ch; font-size: 15px; color: var(--t-fg-muted); }
+.doc__meta { margin-top: 22px; display: flex; flex-wrap: wrap; gap: 8px; }
+.doc__meta span {
+  border: 1px solid var(--t-border); background: var(--t-surface);
+  border-radius: var(--t-radius-pill); padding: 4px 12px; font-size: 13px; color: var(--t-fg-muted);
+}
+.sec { padding: 56px 0 0; }
+.sec__head { margin-bottom: 24px; max-width: 66ch; }
+.sec__title { font-size: 24px; letter-spacing: -0.005em; }
+.sec__desc { margin-top: 8px; font-size: 14px; color: var(--t-fg-muted); }
+
+/* ==========================================================================
+   4 · 令牌速览
+   ========================================================================== */
+.panel { border: 1px solid var(--t-border); background: var(--t-surface); border-radius: var(--t-radius-card); box-shadow: var(--t-shadow-1); }
+.panel--pad { padding: 20px; }
+.panel__label { font-size: 12px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--t-fg-subtle); margin-bottom: 14px; }
+
+.swatches { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; }
+.swatch__chip { height: 56px; border: 1px solid var(--t-border); border-radius: var(--t-radius-inner); }
+.swatch__name { margin-top: 8px; font-size: 12px; font-weight: 500; }
+.swatch__val { font-size: 12px; color: var(--t-fg-subtle); }
+
+.spec-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; margin-top: 20px; }
+.sample-display { font-family: var(--t-font-display); font-size: 26px; font-weight: 600; line-height: 1.35; }
+.sample-formula { font-family: var(--t-font-display); font-size: 21px; color: var(--t-accent); margin-top: 12px; }
+.sample-nums { margin-top: 8px; font-size: 13px; color: var(--t-fg-muted); }
+.sample-body { margin-top: 12px; font-size: 13px; line-height: 1.8; color: var(--t-fg-muted); }
+.kv { display: flex; flex-direction: column; gap: 6px; margin-top: 14px; }
+.kv > div { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; border-bottom: 1px dashed var(--t-border); padding-bottom: 5px; }
+.kv dt { color: var(--t-fg-muted); }
+.kv dd { color: var(--t-fg); text-align: right; }
+
+.radius-row { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-end; }
+.radius-item { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.radius-box { width: 56px; height: 56px; border: 1px solid var(--t-border-strong); background: var(--t-surface-2); }
+.radius-item span { font-size: 12px; color: var(--t-fg-muted); }
+.radius-item em { font-style: normal; font-size: 12px; color: var(--t-fg-subtle); }
+
+.shadow-row { display: flex; flex-direction: column; gap: 12px; }
+.shadow-item { border: 1px solid var(--t-border); background: var(--t-surface); border-radius: var(--t-radius-inner); padding: 10px 14px; font-size: 13px; color: var(--t-fg-muted); }
+.sh1 { box-shadow: var(--t-shadow-1); }
+.sh2 { box-shadow: var(--t-shadow-2); }
+.sh3 { box-shadow: var(--t-shadow-3); }
+
+.dark-chips { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.dark-chip { border-radius: var(--t-radius-inner); border: 1px solid #3a3128; overflow: hidden; }
+.dark-chip__bar { height: 34px; }
+.dark-chip__txt { padding: 6px 10px; background: #17130f; color: #b3a490; font-size: 11px; }
+.dark-chip__txt b { display: block; color: #f6f0e8; font-weight: 500; font-size: 12px; }
+
+/* ==========================================================================
+   5 · 通用控件
+   ========================================================================== */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  height: 40px; padding: 0 16px; border-radius: var(--t-radius-control);
+  font-size: 14px; font-weight: 500; white-space: nowrap; cursor: pointer;
+  transition: color var(--t-dur-base) var(--t-ease-out),
+              background-color var(--t-dur-base) var(--t-ease-out),
+              border-color var(--t-dur-base) var(--t-ease-out),
+              box-shadow var(--t-dur-base) var(--t-ease-out),
+              transform var(--t-dur-base) var(--t-ease-out);
+}
+.btn:active { transform: translateY(1px) scale(0.985); }
+.btn:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--t-focus); }
+.btn--sm { height: 32px; padding: 0 12px; font-size: 13px; gap: 6px; }
+.btn--lg { height: 48px; padding: 0 24px; font-size: 15px; }
+.btn--icon { width: 40px; padding: 0; }
+.btn--block { width: 100%; }
+.btn--start { justify-content: flex-start; }
+.btn--grad { background-image: var(--t-accent-grad); color: var(--t-accent-fg); box-shadow: var(--t-shadow-accent); }
+.btn--grad:hover { filter: brightness(1.08); }
+.btn--accent { background: var(--t-accent); color: var(--t-accent-fg); box-shadow: var(--t-shadow-accent); }
+.btn--accent:hover { background: var(--t-accent-hover); }
+.btn--outline { border: 1px solid var(--t-border-strong); background: var(--t-surface); color: var(--t-fg); }
+.btn--outline:hover { background: var(--t-surface-2); }
+.btn--soft { background: var(--t-accent-soft); color: var(--t-accent); }
+.btn--soft:hover { filter: brightness(0.97); }
+.btn--ghost { color: var(--t-fg-muted); }
+.btn--ghost:hover { background: var(--t-surface-2); color: var(--t-fg); }
+.btn--danger { background: var(--t-err); color: #fff; }
+.btn--danger:hover { filter: brightness(1.08); }
+
+.icon-btn {
+  display: inline-grid; place-items: center; width: 36px; height: 36px;
+  border-radius: var(--t-radius-control); color: var(--t-fg-muted); cursor: pointer;
+  transition: color var(--t-dur-base) var(--t-ease-out), background-color var(--t-dur-base) var(--t-ease-out);
+}
+.icon-btn:hover { background: var(--t-surface-2); color: var(--t-fg); }
+.icon-btn--on { background: var(--t-accent-soft); color: var(--t-accent); }
+.icon-btn--lg { width: 40px; height: 40px; }
+.icon-btn--sm { width: 28px; height: 28px; }
+.icon-btn:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--t-focus); }
+
+.badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  border: 1px solid var(--t-border); background: var(--t-surface-2); color: var(--t-fg-muted);
+  border-radius: var(--t-radius-pill); padding: 2px 8px; font-size: 12px; font-weight: 500;
+}
+.badge--accent { border-color: transparent; background: var(--t-accent-soft); color: var(--t-accent); }
+.badge--accent2 { border-color: transparent; background: var(--t-accent-2-soft); color: var(--t-accent-2); }
+.badge--ok { border-color: transparent; background: var(--t-ok-soft); color: var(--t-ok); }
+.badge--warn { border-color: transparent; background: var(--t-warn-soft); color: var(--t-warn); }
+.badge--err { border-color: transparent; background: var(--t-err-soft); color: var(--t-err); }
+
+.field {
+  width: 100%; height: 40px; padding: 0 12px; font-size: 14px;
+  border: 1px solid var(--t-border); border-radius: var(--t-radius-control);
+  background: var(--t-surface); color: var(--t-fg);
+  transition: border-color var(--t-dur-base) var(--t-ease-out), box-shadow var(--t-dur-base) var(--t-ease-out);
+}
+.field::placeholder { color: var(--t-fg-subtle); }
+.field:focus { outline: none; border-color: var(--t-accent); box-shadow: 0 0 0 3px var(--t-focus); }
+.field--area { height: auto; padding: 8px 12px; line-height: 1.7; }
+
+.progress { height: 6px; border-radius: var(--t-radius-pill); background: var(--t-surface-3); overflow: hidden; }
+.progress__bar { height: 100%; border-radius: var(--t-radius-pill); background-image: var(--t-accent-grad); }
+
+/* ⚠️ 骨架条必须用 `--t-surface-3`：弹窗样片的面板底就是 `--t-surface-2`，
+   两者同色时骨架条等于隐形（曾经就是这么错的）。 */
+.skeleton { background: var(--t-surface-3); border-radius: 6px; animation: breathe 1.8s var(--t-ease-out) infinite; }
+@keyframes breathe { 0%, 100% { opacity: 0.5; } 50% { opacity: 1; } }
+
+.toast {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: var(--t-inverse); color: var(--t-inverse-fg);
+  border-radius: var(--t-radius-pill); padding: 8px 14px; font-size: 13px;
+  box-shadow: var(--t-shadow-2);
+}
+
+/* 响应式：窄屏把多列压成单列 */
+@media (max-width: 900px) {
+  .spec-grid, .dark-chips { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 620px) {
+  .swatches, .spec-grid, .dark-chips { grid-template-columns: 1fr 1fr; }
+  .doc__title { font-size: 30px; }
+}
+</style>
+<style>
+/* ==========================================================================
+   6 · 创作台样片
+   ========================================================================== */
+.wb { border: 1px solid var(--t-border); border-radius: var(--t-radius-card); background: var(--t-bg); box-shadow: var(--t-shadow-3); overflow: hidden; }
+.wb__top { display: flex; align-items: center; gap: 10px; height: 56px; padding: 0 12px; border-bottom: 1px solid var(--t-border); background: var(--t-surface); }
+.wb__brand { display: flex; align-items: center; gap: 8px; }
+.wb__mark { display: grid; place-items: center; width: 28px; height: 28px; border-radius: var(--t-radius-control); background-image: var(--t-accent-grad); color: var(--t-accent-fg); }
+.wb__name { font-family: var(--t-font-display); font-size: 14px; font-weight: 600; }
+.vsep { width: 1px; height: 20px; background: var(--t-border); }
+.wb__title { flex: 1; min-width: 0; font-size: 14px; color: var(--t-fg-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* 头像用**浅品牌色**而不是品牌渐变实心底：对话流里助手每条消息都带一个头像，
+   实心橙一屏十几个，品牌色就被稀释成装饰了。浅填充既保住身份标记，也不抢信号。 */
+.avatar { display: grid; place-items: center; width: 32px; height: 32px; flex: none; border-radius: var(--t-radius-pill); background: var(--t-accent-soft); color: var(--t-accent); font-size: 12px; font-weight: 600; }
+.avatar--sm { width: 28px; height: 28px; font-size: 11px; }
+/* 样片高度按内容给足：这是"整屏截图"式的展示，不该靠裁切省空间。
+   对话区贴底对齐（justify-content: flex-end）—— 真实对话本来就是一屏从底部往上看。 */
+.wb__body { display: flex; height: 900px; }
+.chat__scroll { justify-content: flex-end; }
+
+.side { width: 208px; flex: none; border-right: 1px solid var(--t-border); background: var(--t-surface); display: flex; flex-direction: column; }
+.side__top { padding: 10px; }
+.side__list { flex: 1; overflow: hidden; padding: 8px; display: flex; flex-direction: column; gap: 2px; }
+.side__label { padding: 0 8px 4px; font-size: 12px; font-weight: 500; color: var(--t-fg-subtle); }
+.side__foot { border-top: 1px solid var(--t-border); padding: 8px 10px; font-size: 11px; color: var(--t-fg-subtle); }
+.thread { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: var(--t-radius-control); cursor: pointer; transition: background-color var(--t-dur-base) var(--t-ease-out); }
+.thread:hover { background: var(--t-surface-2); }
+.thread--on { background: var(--t-accent-soft); }
+.thread__icon { color: var(--t-fg-subtle); }
+.thread--on .thread__icon { color: var(--t-accent); }
+.thread__box { min-width: 0; flex: 1; }
+.thread__title { display: flex; align-items: center; gap: 4px; font-size: 13px; font-weight: 500; color: var(--t-fg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.thread--on .thread__title { color: var(--t-accent); }
+.thread__time { font-size: 11px; color: var(--t-fg-subtle); }
+.thread__more { color: var(--t-fg-subtle); }
+
+.chat { flex: 1; min-width: 0; display: flex; flex-direction: column; background: var(--t-bg); }
+.chat__scroll { flex: 1; overflow: hidden; padding: 16px 18px 0; display: flex; flex-direction: column; gap: 16px; }
+.bubble-row { display: flex; justify-content: flex-end; }
+/* 气泡形状：右下角收成一个小直角，像"尾巴"指向说话人（别改成完整胶囊，
+   胶囊会把尾巴吃掉，左右两边就只剩"对齐方向"一个区分了）。
+   填充走 `--t-solid`（亮色档 = 最浅一档品牌色 + 近黑字），不加描边也不加投影：
+   浅填充本身已经能从页面底和白卡片里分出来，再加描边就成了"描边 + 填充"的双重标注。 */
+.bubble-user { max-width: 80%; background: var(--t-solid); color: var(--t-solid-fg); border-radius: var(--t-radius-card) 5px var(--t-radius-card) var(--t-radius-card); padding: 8px 14px; font-size: 13px; line-height: 1.75; }
+.msg { display: flex; gap: 10px; }
+.msg__body { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 10px; }
+.msg__text { font-size: 13px; line-height: 1.9; }
+
+.plan { border: 1px solid var(--t-border); background: var(--t-surface); border-radius: var(--t-radius-card); overflow: hidden; }
+/* ⚠️ 卡头**不铺底色**。卡头是"结构"，颜色只留给图标和序号那种"标记"——
+   结构一旦上色，同一块区域里就有两处颜色互相加码，怎么调都显重或显脏。 */
+.plan__head { display: flex; align-items: center; gap: 8px; padding: 8px 12px; }
+.plan__head .icon { color: var(--t-accent); }
+.plan__name { font-size: 13px; font-weight: 600; }
+.plan__meta { font-size: 11px; color: var(--t-fg-subtle); }
+.plan__edit { margin-left: auto; font-size: 11px; color: var(--t-fg-muted); }
+.plan__edit:hover { color: var(--t-fg); }
+.plan__row { display: flex; align-items: flex-start; gap: 10px; padding: 8px 12px; border-top: 1px solid var(--t-border); }
+/* 序号：浅品牌色填充 + 近黑数字（对比度靠字色，不靠底色）。
+   圆角用 6px 而不是 --t-radius-inner(12px)：20px 见方的面片上 12px 正好是边长一半，
+   会渲染成一个**圆**；圆形看着"软"，计数标记要的是"准"。
+   （圆角令牌是按 32px 以上的控件标定的，小到 20px 的面片需要单独给值。） */
+.plan__idx { display: grid; place-items: center; width: 20px; height: 20px; margin-top: 2px; flex: none; border-radius: 6px; background: var(--t-solid); color: var(--t-solid-fg); font-size: 11px; font-weight: 600; }
+.plan__box { min-width: 0; flex: 1; }
+/* 分镜标题用 550：介于 medium(500) 与 semibold(600) 之间的中间字重。
+   ⚠️ 这个值能生效，前提是字体是**可变字重**的 Noto Sans SC；
+      系统中文栈（微软雅黑只有 Regular/Bold）会把 550 直接吸附成 Bold，那就"太粗"了。 */
+.plan__t { font-size: 13px; font-weight: 550; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.plan__s { font-size: 11px; color: var(--t-fg-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.plan__sec { font-size: 11px; color: var(--t-fg-subtle); }
+.plan__foot { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-top: 1px solid var(--t-border); }
+
+.pcard { border: 1px solid var(--t-border); background: var(--t-surface); border-radius: var(--t-radius-card); padding: 12px; }
+.pcard__head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.pcard__head .icon { color: var(--t-accent); }
+.pcard__t { font-size: 13px; font-weight: 500; }
+.pcard__pct { margin-left: auto; font-size: 11px; color: var(--t-fg-subtle); }
+.pcard__rows { margin-top: 10px; display: flex; flex-direction: column; gap: 4px; }
+.prow { display: flex; align-items: center; gap: 8px; font-size: 11px; }
+.prow__n { width: 12px; color: var(--t-fg-subtle); }
+.prow__t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.player { border: 1px solid var(--t-border); background: var(--t-surface); border-radius: var(--t-radius-card); overflow: hidden; box-shadow: var(--t-shadow-1); }
+.player__frame { position: relative; aspect-ratio: 16 / 9; background: var(--t-video); }
+.player__frame svg { display: block; width: 100%; height: 100%; }
+.player__chip { position: absolute; left: 10px; top: 10px; background: rgba(0, 0, 0, 0.55); color: #fff; font-size: 11px; border-radius: var(--t-radius-pill); padding: 2px 9px; -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+.player__time { position: absolute; right: 10px; bottom: 10px; background: rgba(0, 0, 0, 0.55); color: rgba(255, 255, 255, 0.92); font-size: 11px; border-radius: var(--t-radius-pill); padding: 2px 9px; -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+.player__cap { display: flex; align-items: center; gap: 8px; padding: 8px 12px; }
+.player__link { margin-left: auto; display: flex; align-items: center; gap: 2px; font-size: 11px; color: var(--t-fg-muted); }
+.player__link:hover { color: var(--t-fg); }
+
+.composer-wrap { padding: 0 18px 16px; }
+.composer { border: 1px solid var(--t-border); background: var(--t-surface); border-radius: var(--t-radius-card); padding: 10px 12px 8px; box-shadow: var(--t-shadow-2); transition: border-color var(--t-dur-base) var(--t-ease-out); }
+.composer__area { width: 100%; border: 0; outline: none; background: transparent; font-size: 13px; line-height: 1.8; color: var(--t-fg); padding: 0; }
+.composer__bar { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; }
+.model-pill { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--t-border); background: var(--t-surface-2); border-radius: var(--t-radius-pill); padding: 4px 10px; font-size: 11px; color: var(--t-fg-muted); }
+.model-pill .icon { color: var(--t-accent); }
+
+.artifacts { width: 240px; flex: none; border-left: 1px solid var(--t-border); background: var(--t-surface); display: flex; flex-direction: column; }
+.artifacts__head { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--t-border); }
+.artifacts__head .icon { color: var(--t-accent); }
+.artifacts__t { font-size: 13px; font-weight: 600; }
+.artifacts__n { font-size: 11px; color: var(--t-fg-subtle); }
+.artifacts__list { padding: 8px; display: flex; flex-direction: column; gap: 8px; }
+.artifact { border: 1px solid var(--t-border); background: var(--t-surface); border-radius: var(--t-radius-inner); overflow: hidden; box-shadow: var(--t-shadow-1); transition: transform var(--t-dur-base) var(--t-ease-out), box-shadow var(--t-dur-base) var(--t-ease-out); }
+.artifact:hover { transform: translateY(-2px); box-shadow: var(--t-shadow-2); }
+.artifact__thumb { position: relative; aspect-ratio: 16 / 9; background: var(--t-video); }
+.artifact__thumb svg { display: block; width: 100%; height: 100%; }
+.artifact__tag { position: absolute; background: rgba(0, 0, 0, 0.55); color: #fff; font-size: 10px; border-radius: var(--t-radius-pill); padding: 1px 6px; -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+.artifact__tag--tl { left: 8px; top: 8px; }
+.artifact__tag--br { right: 8px; bottom: 8px; }
+.artifact__body { padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; }
+.artifact__name { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.artifact__meta { display: flex; align-items: center; gap: 6px; }
+.artifact__meta .icon { margin-left: auto; color: var(--t-fg-subtle); }
+/* ==========================================================================
+   7 · 落地页与套餐
+   ========================================================================== */
+.hero { position: relative; overflow: hidden; border: 1px solid var(--t-border); border-radius: var(--t-radius-card); background: var(--t-bg); }
+.hero__glow { position: absolute; inset: 0; background-image: var(--t-hero-glow); }
+.hero__inner { position: relative; padding: 48px 32px; text-align: center; }
+.hero__title { font-family: var(--t-font-display); font-size: 40px; font-weight: 700; letter-spacing: -0.015em; line-height: 1.2; max-width: 22ch; margin: 18px auto 0; text-wrap: balance; }
+/*
+ * 渐变强调词组。
+ * ⚠️ `white-space: nowrap` 不是可有可无的：中文可以**在任意两个字之间**换行，
+ *    所以"讲成一段"会被拆成"讲成一 / 段"，高亮词组断成两截。
+ *    加了 nowrap 之后这一段成为整体，换行只能落在它两侧 ——
+ *    配合容器的 `text-wrap: balance`，稳定的结果是"把知识点讲成一段 / 看得懂的动画"。
+ * ⚠️ 标签里**不要留空格**：英文空格既是可见的间隙，也是一个额外的换行点。
+ */
+.grad-text {
+  background-image: var(--t-accent-grad);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  white-space: nowrap;
+}
+.hero__lead { margin: 16px auto 0; max-width: 46ch; font-size: 15px; color: var(--t-fg-muted); }
+.hero__cta { margin-top: 28px; display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+.chips { margin-top: 24px; display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
+.chip { border: 1px solid var(--t-border); background: var(--t-surface); border-radius: var(--t-radius-pill); padding: 4px 11px; font-size: 13px; color: var(--t-fg-muted); transition: color var(--t-dur-base) var(--t-ease-out), border-color var(--t-dur-base) var(--t-ease-out); }
+.chip:hover { color: var(--t-accent); border-color: var(--t-accent); }
+
+.feats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-top: 20px; }
+.feat { border: 1px solid var(--t-border); background: var(--t-surface); border-radius: var(--t-radius-card); padding: 20px; box-shadow: var(--t-shadow-1); transition: transform var(--t-dur-base) var(--t-ease-out), box-shadow var(--t-dur-base) var(--t-ease-out); }
+.feat:hover { transform: translateY(-2px); box-shadow: var(--t-shadow-2); }
+.feat__icon { display: grid; place-items: center; width: 40px; height: 40px; border-radius: var(--t-radius-inner); background: var(--t-accent-soft); color: var(--t-accent); }
+.feat__t { margin-top: 14px; font-size: 16px; }
+.feat__b { margin-top: 6px; font-size: 14px; color: var(--t-fg-muted); }
+
+.plans { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-top: 20px; }
+.plan-card { display: flex; flex-direction: column; border: 1px solid var(--t-border); background: var(--t-surface); border-radius: var(--t-radius-card); padding: 20px; box-shadow: var(--t-shadow-1); }
+.plan-card--hl { box-shadow: var(--t-shadow-2), 0 0 0 2px var(--t-accent); }
+.plan-card__head { display: flex; align-items: center; gap: 8px; }
+.plan-card__t { font-size: 16px; }
+.plan-card__price { display: flex; align-items: baseline; gap: 4px; margin-top: 16px; }
+.plan-card__price b { font-family: var(--t-font-display); font-size: 30px; font-weight: 700; }
+.plan-card__price span { font-size: 12px; color: var(--t-fg-subtle); }
+.plan-card__items { margin-top: 16px; flex: 1; display: flex; flex-direction: column; gap: 8px; }
+.plan-card__items li { display: flex; gap: 6px; align-items: flex-start; font-size: 14px; color: var(--t-fg-muted); }
+.plan-card__items .icon { margin-top: 6px; color: var(--t-ok); }
+.plan-card .btn { margin-top: 20px; }
+/* ==========================================================================
+   8 · 浮层样片
+   ========================================================================== */
+.overlay-grid { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 20px; }
+.stage { position: relative; height: 304px; overflow: hidden; border: 1px solid var(--t-border); border-radius: var(--t-radius-card); background: var(--t-surface-2); }
+.stage__fake { padding: 20px; display: flex; flex-direction: column; gap: 10px; opacity: 0.45; filter: blur(1.5px); }
+.stage__scrim { position: absolute; inset: 0; background: var(--t-scrim); -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px); }
+.stage__center { position: absolute; inset: 0; display: grid; place-items: center; padding: 24px; }
+
+.dialog { width: 100%; max-width: 384px; border: 1px solid var(--t-border); background: var(--t-surface); border-radius: var(--t-radius-card); padding: 20px; box-shadow: var(--t-shadow-3); }
+.dialog__head { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 12px; }
+.dialog__t { font-size: 16px; }
+.dialog__d { margin-top: 4px; font-size: 12px; line-height: 1.75; color: var(--t-fg-muted); }
+.dialog__d strong { color: var(--t-fg); font-weight: 500; }
+.dialog__foot { display: flex; justify-content: flex-end; gap: 8px; }
+
+.menu { border: 1px solid var(--t-border); background: var(--t-surface); border-radius: var(--t-radius-control); padding: 4px; box-shadow: var(--t-shadow-2); }
+.menu__item { display: flex; align-items: center; gap: 8px; width: 100%; border-radius: var(--t-radius-inner); padding: 6px 10px; font-size: 14px; text-align: left; cursor: pointer; transition: background-color var(--t-dur-base) var(--t-ease-out); }
+.menu__item:hover { background: var(--t-surface-2); }
+.menu__item .icon { color: var(--t-fg-muted); }
+.menu__item--danger { color: var(--t-err); }
+.menu__item--danger:hover { background: var(--t-err-soft); }
+.menu__item--danger .icon { color: var(--t-err); }
+.menu__sep { height: 1px; background: var(--t-border); margin: 4px 0; }
+
+/* 这一节右侧的"下拉菜单 + 状态样例"竖排 */
+.stack-8 { display: flex; flex-direction: column; gap: 8px; }
+.row-wrap { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.mini-title { font-size: 14px; font-weight: 600; }
+.mini-desc { margin-top: 4px; font-size: 13px; color: var(--t-fg-muted); }
+.overlay-side { display: flex; flex-direction: column; gap: 20px; }
+
+/* ==========================================================================
+   9 · 文档页脚与响应式
+   ========================================================================== */
+.foot { margin-top: 56px; padding-top: 20px; border-top: 1px solid var(--t-border); font-size: 13px; color: var(--t-fg-subtle); }
+
+@media (max-width: 1000px) {
+  .feats, .plans { grid-template-columns: 1fr; }
+  .overlay-grid { grid-template-columns: 1fr; }
+  /* 样片比真实界面窄：先把产物栏收掉，再收侧栏，保证对话区不被挤成一条 */
+  .artifacts { display: none; }
+}
+@media (max-width: 720px) {
+  .side { display: none; }
+  .wb__body { height: auto; }
+  .chat__scroll { overflow: visible; }
+}
+@media (max-width: 900px) {
+  .spec-grid, .dark-chips { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 620px) {
+  .swatches, .spec-grid, .dark-chips { grid-template-columns: 1fr 1fr; }
+  .doc__title { font-size: 30px; }
+  .hero__title { font-size: 30px; }
+}
+
+</style>
+</head>
+<body>
+<!-- 隐藏的主题开关：靠兄弟选择器给 .page 换一整套令牌，不需要任何脚本 -->
+<input type="checkbox" id="tswitch" class="tswitch" aria-label="切换亮色 / 暗色主题" />
+
+<div class="page">
+<!-- ==========================================================================
+     图标 sprite：内联 SVG，零外部请求（路径取自 lucide，ISC 许可）
+     以及"伪造的视频画面"：坐标系 + y = x² 曲线 + 在 (1,1) 处的切线
+     ========================================================================== -->
+<svg class="sprite" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401"/></symbol>
+  <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M12 5v14"/></symbol>
+  <symbol id="i-sparkles" viewBox="0 0 24 24"><path d="M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z"/><path d="M20 2v4"/><path d="M22 4h-4"/><circle cx="4" cy="20" r="2"/></symbol>
+  <symbol id="i-panel-left" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/></symbol>
+  <symbol id="i-panel-right" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M15 3v18"/></symbol>
+  <symbol id="i-chat" viewBox="0 0 24 24"><path d="M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z"/><path d="M7 11h10"/><path d="M7 15h6"/><path d="M7 7h8"/></symbol>
+  <symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/></symbol>
+  <symbol id="i-ellipsis" viewBox="0 0 24 24"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></symbol>
+  <symbol id="i-list-checks" viewBox="0 0 24 24"><path d="M13 5h8"/><path d="M13 12h8"/><path d="M13 19h8"/><path d="m3 17 2 2 4-4"/><path d="m3 7 2 2 4-4"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+  <symbol id="i-loader" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></symbol>
+  <symbol id="i-chevron-right" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol>
+  <symbol id="i-arrow-up" viewBox="0 0 24 24"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></symbol>
+  <symbol id="i-arrow-right" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></symbol>
+  <symbol id="i-brain" viewBox="0 0 24 24"><path d="M12 18V5"/><path d="M15 13a4.17 4.17 0 0 1-3-4 4.17 4.17 0 0 1-3 4"/><path d="M17.598 6.5A3 3 0 1 0 12 5a3 3 0 1 0-5.598 1.5"/><path d="M17.997 5.125a4 4 0 0 1 2.526 5.77"/><path d="M18 18a4 4 0 0 0 2-7.464"/><path d="M19.967 17.483A4 4 0 1 1 12 18a4 4 0 1 1-7.967-.517"/><path d="M6 18a4 4 0 0 1-2-7.464"/><path d="M6.003 5.125a4 4 0 0 0-2.526 5.77"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></symbol>
+  <symbol id="i-film" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M7 3v18"/><path d="M3 7.5h4"/><path d="M3 12h18"/><path d="M3 16.5h4"/><path d="M17 3v18"/><path d="M17 7.5h4"/><path d="M17 16.5h4"/></symbol>
+  <symbol id="i-pencil" viewBox="0 0 24 24"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/></symbol>
+  <symbol id="i-share" viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" x2="15.42" y1="13.51" y2="17.49"/><line x1="15.41" x2="8.59" y1="6.51" y2="10.49"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M10 11v6"/><path d="M14 11v6"/></symbol>
+  <symbol id="i-layers" viewBox="0 0 24 24"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"/><path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12"/><path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17"/></symbol>
+  <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 15V3"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/></symbol>
+  <symbol id="i-link" viewBox="0 0 24 24"><path d="M9 17H7A5 5 0 0 1 7 7h2"/><path d="M15 7h2a5 5 0 1 1 0 10h-2"/><line x1="8" x2="16" y1="12" y2="12"/></symbol>
+
+  <symbol id="f-frame" viewBox="0 0 320 180">
+    <g stroke="rgba(255,255,255,0.07)" stroke-width="1">
+      <path d="M40 10v140M70 10v140M100 10v140M130 10v140M190 10v140M220 10v140M250 10v140M280 10v140"/>
+      <path d="M20 38h280M20 66h280M20 94h280M20 122h280"/>
+    </g>
+    <g stroke="rgba(255,255,255,0.28)" stroke-width="1.5">
+      <path d="M24 150h272"/><path d="M160 14v154"/>
+    </g>
+    <polyline points="28,15 40,38 52,59 64,78 76,95 88,110 100,122 112,132 124,140 136,145 148,149 160,150 172,149 184,145 196,140 208,132 220,122 232,110 244,95 256,78 268,59 280,38 292,15" fill="none" stroke="#ff9a6e" stroke-width="2.4" stroke-linecap="round"/>
+    <path d="M190 150 284 62" stroke="#f2c078" stroke-width="1.6" stroke-dasharray="5 4"/>
+    <path d="M220 150v-28" stroke="rgba(255,255,255,0.35)" stroke-width="1" stroke-dasharray="3 3"/>
+    <circle cx="220" cy="122" r="4.5" fill="#ffe6cf"/>
+    <circle cx="220" cy="122" r="8" fill="none" stroke="rgba(255,230,207,0.35)" stroke-width="1.5"/>
+    <g fill="rgba(255,255,255,0.5)" font-size="10" font-family="system-ui, sans-serif">
+      <text x="298" y="146">x</text><text x="166" y="20">y</text>
+    </g>
+    <text x="238" y="34" fill="#ff9a6e" font-size="11" font-family="system-ui, sans-serif">y = x²</text>
+    <text x="226" y="139" fill="#f2c078" font-size="11" font-family="system-ui, sans-serif">P(1, 1)</text>
+    <text x="196" y="176" fill="rgba(242,192,120,0.8)" font-size="10" font-family="system-ui, sans-serif">切线斜率 = 2</text>
+  </symbol>
+
+  <symbol id="f-thumb" viewBox="0 0 320 180">
+    <g stroke="rgba(255,255,255,0.06)" stroke-width="1">
+      <path d="M40 10v140M100 10v140M220 10v140M280 10v140"/>
+      <path d="M20 50h280M20 100h280"/>
+    </g>
+    <g stroke="rgba(255,255,255,0.22)" stroke-width="1.5"><path d="M24 150h272"/><path d="M160 14v154"/></g>
+    <polyline points="28,15 40,38 52,59 64,78 76,95 88,110 100,122 112,132 124,140 136,145 148,149 160,150 172,149 184,145 196,140 208,132 220,122 232,110 244,95 256,78 268,59 280,38 292,15" fill="none" stroke="#ff9a6e" stroke-width="3" stroke-linecap="round"/>
+    <path d="M190 150 284 62" stroke="#f2c078" stroke-width="2" stroke-dasharray="6 5"/>
+    <circle cx="220" cy="122" r="5" fill="#ffe6cf"/>
+  </symbol>
+</svg>
+<div class="doc">
+  <!-- ======================================================================
+       文档头
+       ====================================================================== -->
+  <header class="doc__head">
+    <p class="eyebrow">智绘课堂 · UI 设计稿</p>
+    <h1 class="doc__title">暖调纸感进阶</h1>
+    <p class="doc__lead">
+      中性灰底 + 近黑字，橙色只做小面积强调，圆角与柔和多层阴影，展示级标题保留衬线体的书卷气。
+      中性灰不跟任何色相打架，橙色才能干净地跳出来；暗色档则走暖调深色，
+      让长时间盯着视频时页面边缘不刺眼。
+    </p>
+    <div class="doc__meta">
+      <span>版本 v2 · 2026-09-15 定稿</span>
+      <span>页面底 #FAFAFA</span>
+      <span>危险色 #E5484D</span>
+      <span>圆角 16 / 12 / 10px</span>
+      <span>展示级衬线 · 功能级无衬线</span>
+    </div>
+
+  </header>
+
+  <!-- ======================================================================
+       1 · 令牌
+       ====================================================================== -->
+  <section class="sec">
+    <div class="sec__head">
+      <h2 class="sec__title">设计令牌</h2>
+      <p class="sec__desc">
+        三层令牌：原始色值 → 语义名 <code>--t-*</code> → 组件只认语义名。
+        页面代码里写的是 <code>bg-surface</code> / <code>text-fg-muted</code> 这类语义类，
+        换主题时只改令牌，不动组件。
+      </p>
+    </div>
+
+    <div class="panel panel--pad">
+      <p class="panel__label">亮色档 · 色板</p>
+      <div class="swatches">
+        <div class="swatch"><div class="swatch__chip" style="background:#fafafa"></div><p class="swatch__name">--t-bg</p><p class="swatch__val">#FAFAFA</p></div>
+        <div class="swatch"><div class="swatch__chip" style="background:#ffffff"></div><p class="swatch__name">--t-surface</p><p class="swatch__val">#FFFFFF</p></div>
+        <div class="swatch"><div class="swatch__chip" style="background:#f2f2f3"></div><p class="swatch__name">--t-surface-2</p><p class="swatch__val">#F2F2F3</p></div>
+        <div class="swatch"><div class="swatch__chip" style="background:#e9e9eb"></div><p class="swatch__name">--t-surface-3</p><p class="swatch__val">#E9E9EB</p></div>
+        <div class="swatch"><div class="swatch__chip" style="background:#e6e6e8"></div><p class="swatch__name">--t-border</p><p class="swatch__val">#E6E6E8</p></div>
+        <div class="swatch"><div class="swatch__chip" style="background:#1a1a1c"></div><p class="swatch__name">--t-fg</p><p class="swatch__val">#1A1A1C</p></div>
+        <div class="swatch"><div class="swatch__chip" style="background:#cf5a34"></div><p class="swatch__name">--t-accent</p><p class="swatch__val">#CF5A34</p></div>
+        <div class="swatch"><div class="swatch__chip" style="background:#fbeae2"></div><p class="swatch__name">--t-solid</p><p class="swatch__val">#FBEAE2</p></div>
+        <div class="swatch"><div class="swatch__chip" style="background:#2f7a5a"></div><p class="swatch__name">--t-ok</p><p class="swatch__val">#2F7A5A</p></div>
+        <div class="swatch"><div class="swatch__chip" style="background:#b8892b"></div><p class="swatch__name">--t-warn</p><p class="swatch__val">#B8892B</p></div>
+        <div class="swatch"><div class="swatch__chip" style="background:#e5484d"></div><p class="swatch__name">--t-err</p><p class="swatch__val">#E5484D</p></div>
+      </div>
+    </div>
+
+    <div class="spec-grid">
+      <div class="panel panel--pad">
+        <p class="panel__label">字体</p>
+        <p class="display sample-display">把知识点讲成一段动画</p>
+        <p class="display sample-formula">y = x² + 2x − 3</p>
+        <p class="tnum sample-nums">0123456789 · 0.618 · 3.14159</p>
+        <p class="sample-body">正文样张：切线在动点处实时跟随，斜率的数值变化被直接画在图上。</p>
+        <div class="kv">
+          <div><dt>展示级</dt><dd>衬线 · Hero / 空态 / 章节标题</dd></div>
+          <div><dt>功能级</dt><dd>无衬线 · 弹窗 / 卡片标题</dd></div>
+          <div><dt>正文</dt><dd>无衬线</dd></div>
+        </div>
+      </div>
+
+      <div class="panel panel--pad">
+        <p class="panel__label">圆角</p>
+        <div class="radius-row">
+          <div class="radius-item"><div class="radius-box" style="border-radius:10px"></div><span>控件</span><em>10px</em></div>
+          <div class="radius-item"><div class="radius-box" style="border-radius:12px"></div><span>内嵌</span><em>12px</em></div>
+          <div class="radius-item"><div class="radius-box" style="border-radius:16px"></div><span>卡片</span><em>16px</em></div>
+          <div class="radius-item"><div class="radius-box" style="border-radius:999px"></div><span>胶囊</span><em>999px</em></div>
+        </div>
+        <p class="sample-body">
+          圆角从早期的 20 / 16 / 12 收到 16 / 12 / 10：工作台里有很多只有一两行文字的小面
+          （缩略卡、分镜行、会话条目），原来的档位在密集排布时显得"胖"。
+        </p>
+      </div>
+
+      <div class="panel panel--pad">
+        <p class="panel__label">阴影与材质</p>
+        <div class="shadow-row">
+          <div class="shadow-item sh1">一级 · 静止卡片</div>
+          <div class="shadow-item sh2">二级 · 悬停 / 浮起</div>
+          <div class="shadow-item sh3">三级 · 弹窗</div>
+        </div>
+        <p class="sample-body">
+          亮色档的投影用**中性黑**，不用带色相的投影 —— 暖棕或藏青的投影会立刻让中性灰偏色。
+          层次靠"1px 描边 + 两级柔和投影"建立，不靠加深底色：那样会连同层次一起变浑。
+        </p>
+      </div>
+    </div>
+
+    <div class="panel panel--pad" style="margin-top:20px">
+      <p class="panel__label">暗色档（静态对照）</p>
+      <div class="dark-chips">
+        <div class="dark-chip"><div class="dark-chip__bar" style="background:#17130f"></div><div class="dark-chip__txt"><b>--t-bg</b>#17130F</div></div>
+        <div class="dark-chip"><div class="dark-chip__bar" style="background:#211b16"></div><div class="dark-chip__txt"><b>--t-surface</b>#211B16</div></div>
+        <div class="dark-chip"><div class="dark-chip__bar" style="background:#2b241d"></div><div class="dark-chip__txt"><b>--t-surface-2</b>#2B241D</div></div>
+        <div class="dark-chip"><div class="dark-chip__bar" style="background:#3a3128"></div><div class="dark-chip__txt"><b>--t-border</b>#3A3128</div></div>
+        <div class="dark-chip"><div class="dark-chip__bar" style="background:#f6f0e8"></div><div class="dark-chip__txt"><b>--t-fg</b>#F6F0E8</div></div>
+        <div class="dark-chip"><div class="dark-chip__bar" style="background:#b3a490"></div><div class="dark-chip__txt"><b>--t-fg-muted</b>#B3A490</div></div>
+        <div class="dark-chip"><div class="dark-chip__bar" style="background:#e8744f"></div><div class="dark-chip__txt"><b>--t-accent</b>#E8744F</div></div>
+        <div class="dark-chip"><div class="dark-chip__bar" style="background:#f2686d"></div><div class="dark-chip__txt"><b>--t-err</b>#F2686D</div></div>
+      </div>
+      <p class="sample-body">
+        暗色不是简单反相：用深暖棕黑替代纯黑、强调色提亮一档、阴影加深而不是变淡，
+        保证长时间盯着视频时页面边缘不刺眼。反色面（轻提示 / Tooltip）在暗色下要反过来变亮，
+        否则会糊进页面背景。
+        <br />
+        ⚠️ 亮暗两档**故意不是同一套中性色**：亮色是纯中性灰（不偏黄也不偏蓝），
+        暗色保留暖调。亮色档试过暖白底 + 珊瑚橙（整片发闷发脏，"层次"退化成色差极小的一片暖）、
+        冷蓝灰 + 学院藏青（干净，但和橙色强调像两套体系）—— 都不如中性灰。
+      </p>
+    </div>
+  </section>
+  <!-- ======================================================================
+       2 · 创作台
+       ====================================================================== -->
+  <section class="sec">
+    <div class="sec__head">
+      <h2 class="sec__title">创作台 · 三栏工作台</h2>
+      <p class="sec__desc">
+        最核心也最密的一屏：左侧历史会话、中间对话流、右侧产物。
+        层次靠三层明度（页面底 → 卡片面 → 内嵌面）+ 1px 描边建立，关键区用品牌色光晕做视觉落点。
+      </p>
+    </div>
+
+    <div class="wb">
+      <!-- 顶栏 -->
+      <div class="wb__top">
+        <button class="icon-btn icon-btn--lg icon-btn--on" aria-label="历史栏已展开">
+          <svg class="icon i16" aria-hidden="true"><use href="#i-panel-left"/></svg>
+        </button>
+        <div class="wb__brand">
+          <span class="wb__mark"><svg class="icon i14" aria-hidden="true"><use href="#i-sparkles"/></svg></span>
+          <span class="wb__name">智绘课堂</span>
+        </div>
+        <span class="vsep"></span>
+        <span class="wb__title">导数就是切线的斜率</span>
+        <button class="btn btn--outline btn--sm">
+          <svg class="icon i14" aria-hidden="true"><use href="#i-plus"/></svg>
+          新建
+        </button>
+        <button class="icon-btn icon-btn--lg" aria-label="展开预览栏">
+          <svg class="icon i16" aria-hidden="true"><use href="#i-panel-right"/></svg>
+        </button>
+        <span class="avatar">学</span>
+      </div>
+
+      <div class="wb__body">
+        <!-- 历史会话 -->
+        <aside class="side">
+          <div class="side__top">
+            <button class="btn btn--outline btn--sm btn--block btn--start">
+              <svg class="icon i14" aria-hidden="true"><use href="#i-plus"/></svg>
+              新建讲解
+            </button>
+          </div>
+          <div class="side__list">
+            <p class="side__label">最近</p>
+            <div class="thread thread--on">
+              <svg class="icon i14 thread__icon" aria-hidden="true"><use href="#i-chat"/></svg>
+              <div class="thread__box">
+                <p class="thread__title">
+                  <span>导数就是切线的斜率</span>
+                  <svg class="icon i12" aria-hidden="true" style="color:var(--t-accent)"><use href="#i-pin"/></svg>
+                </p>
+                <p class="thread__time">2 分钟前</p>
+              </div>
+              <svg class="icon i14 thread__more" aria-hidden="true"><use href="#i-ellipsis"/></svg>
+            </div>
+            <div class="thread">
+              <svg class="icon i14 thread__icon" aria-hidden="true"><use href="#i-chat"/></svg>
+              <div class="thread__box">
+                <p class="thread__title"><span>勾股定理的面积证法</span></p>
+                <p class="thread__time">1 小时前</p>
+              </div>
+              <svg class="icon i14 thread__more" aria-hidden="true"><use href="#i-ellipsis"/></svg>
+            </div>
+            <div class="thread">
+              <svg class="icon i14 thread__icon" aria-hidden="true"><use href="#i-chat"/></svg>
+              <div class="thread__box">
+                <p class="thread__title"><span>定积分的几何意义</span></p>
+                <p class="thread__time">昨天</p>
+              </div>
+              <svg class="icon i14 thread__more" aria-hidden="true"><use href="#i-ellipsis"/></svg>
+            </div>
+            <div class="thread">
+              <svg class="icon i14 thread__icon" aria-hidden="true"><use href="#i-chat"/></svg>
+              <div class="thread__box">
+                <p class="thread__title"><span>函数图像的平移与伸缩</span></p>
+                <p class="thread__time">3 天前</p>
+              </div>
+              <svg class="icon i14 thread__more" aria-hidden="true"><use href="#i-ellipsis"/></svg>
+            </div>
+          </div>
+          <p class="side__foot">会话在后端保留 30 天</p>
+        </aside>
+
+        <!-- 对话流 -->
+        <div class="chat">
+          <div class="chat__scroll">
+            <div class="bubble-row">
+              <div class="bubble-user">讲一下导数是什么，要能看出来切线为什么就是斜率</div>
+            </div>
+
+            <div class="msg">
+              <span class="avatar avatar--sm"><svg class="icon i13" aria-hidden="true"><use href="#i-sparkles"/></svg></span>
+              <div class="msg__body">
+                <p class="msg__text">
+                  导数量的是「瞬时变化快慢」。把曲线放大到某一点附近，它看起来就越来越像一条直线 ——
+                  这条直线的倾斜程度，就是这一点的导数。我拆成 4 个分镜来演：先问「在量什么」，
+                  再让动点沿曲线滑动、切线实时跟随，最后归纳出 y′ = 2x。
+                </p>
+
+                <!-- 分镜大纲 -->
+                <div class="plan">
+                  <div class="plan__head">
+                    <svg class="icon i14" aria-hidden="true"><use href="#i-list-checks"/></svg>
+                    <span class="plan__name">分镜大纲</span>
+                    <span class="plan__meta tnum">4 个分镜 · 约 32s</span>
+                    <button class="plan__edit">编辑</button>
+                  </div>
+                  <div class="plan__row">
+                    <span class="plan__idx tnum">1</span>
+                    <div class="plan__box"><p class="plan__t">抛出问题</p><p class="plan__s">导数到底在量什么</p></div>
+                    <span class="plan__sec tnum">6s</span>
+                  </div>
+                  <div class="plan__row">
+                    <span class="plan__idx tnum">2</span>
+                    <div class="plan__box"><p class="plan__t">画出曲线</p><p class="plan__s">先把 y = x² 摆到坐标系里</p></div>
+                    <span class="plan__sec tnum">8s</span>
+                  </div>
+                  <div class="plan__row">
+                    <span class="plan__idx tnum">3</span>
+                    <div class="plan__box"><p class="plan__t">动点与切线</p><p class="plan__s">动点滑动，切线跟随，实时显示斜率</p></div>
+                    <span class="plan__sec tnum">12s</span>
+                  </div>
+                  <div class="plan__row">
+                    <span class="plan__idx tnum">4</span>
+                    <div class="plan__box"><p class="plan__t">归纳结论</p><p class="plan__s">得到 y′ = 2x</p></div>
+                    <span class="plan__sec tnum">6s</span>
+                  </div>
+                  <div class="plan__foot">
+                    <button class="btn btn--grad btn--sm">
+                      <svg class="icon i14" aria-hidden="true"><use href="#i-check"/></svg>
+                      确认生成
+                    </button>
+                    <button class="btn btn--ghost btn--sm">重新生成大纲</button>
+                  </div>
+                </div>
+
+                <!-- 分镜级进度 -->
+                <div class="pcard">
+                  <div class="pcard__head">
+                    <svg class="icon i14" aria-hidden="true"><use href="#i-loader"/></svg>
+                    <span class="pcard__t">渲染分镜 3/4</span>
+                    <span class="pcard__pct tnum">75%</span>
+                  </div>
+                  <div class="progress"><div class="progress__bar" style="width:75%"></div></div>
+                  <div class="pcard__rows">
+                    <div class="prow"><span class="prow__n tnum">1</span><span class="prow__t">抛出问题</span><span class="badge badge--ok">已完成</span></div>
+                    <div class="prow"><span class="prow__n tnum">2</span><span class="prow__t">画出曲线</span><span class="badge badge--ok">已完成</span></div>
+                    <div class="prow"><span class="prow__n tnum">3</span><span class="prow__t">动点与切线</span><span class="badge badge--ok">已完成</span></div>
+                    <div class="prow"><span class="prow__n tnum">4</span><span class="prow__t">归纳结论</span><span class="badge badge--accent">渲染中</span></div>
+                  </div>
+                </div>
+
+                <!-- 内联视频卡 -->
+                <figure class="player">
+                  <div class="player__frame">
+                    <svg viewBox="0 0 320 180" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><use href="#f-frame"/></svg>
+                    <span class="player__chip">导数就是切线的斜率</span>
+                    <span class="player__time tnum">12.4s / 32.0s</span>
+                  </div>
+                  <figcaption class="player__cap">
+                    <span class="badge badge--accent">渲染中 · 3/4 分镜就绪</span>
+                    <button class="player__link">
+                      分镜与详情
+                      <svg class="icon i12" aria-hidden="true"><use href="#i-chevron-right"/></svg>
+                    </button>
+                  </figcaption>
+                </figure>
+              </div>
+            </div>
+          </div>
+
+          <!-- 输入框 -->
+          <div class="composer-wrap">
+            <div class="composer">
+              <textarea class="composer__area" rows="1" readonly>第三步能不能讲慢一点，多留 2 秒给公式</textarea>
+              <div class="composer__bar">
+                <span class="model-pill">
+                  <svg class="icon i12" aria-hidden="true"><use href="#i-brain"/></svg>
+                  深度思考
+                  <svg class="icon i12" aria-hidden="true" style="color:var(--t-fg-subtle)"><use href="#i-chevron-right"/></svg>
+                </span>
+                <button class="btn btn--grad btn--icon" aria-label="发送">
+                  <svg class="icon i14" aria-hidden="true"><use href="#i-arrow-up"/></svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 产物栏 -->
+        <aside class="artifacts">
+          <div class="artifacts__head">
+            <svg class="icon i14" aria-hidden="true"><use href="#i-film"/></svg>
+            <span class="artifacts__t">产物</span>
+            <span class="artifacts__n tnum">2 个视频</span>
+          </div>
+          <div class="artifacts__list">
+            <div class="artifact">
+              <div class="artifact__thumb">
+                <svg viewBox="0 0 320 180" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><use href="#f-thumb"/></svg>
+                <span class="artifact__tag artifact__tag--tl tnum">v2</span>
+                <span class="artifact__tag artifact__tag--br tnum">32.0s</span>
+              </div>
+              <div class="artifact__body">
+                <p class="artifact__name">导数就是切线的斜率</p>
+                <div class="artifact__meta">
+                  <span class="badge badge--accent">渲染中 3/4</span>
+                  <span class="tnum" style="font-size:11px;color:var(--t-fg-subtle)">4 分镜</span>
+                  <svg class="icon i12" aria-hidden="true"><use href="#i-link"/></svg>
+                </div>
+              </div>
+            </div>
+            <div class="artifact">
+              <div class="artifact__thumb">
+                <svg viewBox="0 0 320 180" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><use href="#f-thumb"/></svg>
+                <span class="artifact__tag artifact__tag--tl tnum">v1</span>
+                <span class="artifact__tag artifact__tag--br tnum">28.4s</span>
+              </div>
+              <div class="artifact__body">
+                <p class="artifact__name">导数就是切线的斜率</p>
+                <div class="artifact__meta">
+                  <span class="badge badge--ok">已出片</span>
+                  <span class="tnum" style="font-size:11px;color:var(--t-fg-subtle)">4 分镜</span>
+                  <svg class="icon i12" aria-hidden="true"><use href="#i-link"/></svg>
+                </div>
+              </div>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </div>
+  </section>
+  <!-- ======================================================================
+       3 · 落地页
+       ====================================================================== -->
+  <section class="sec">
+    <div class="sec__head">
+      <h2 class="sec__title">落地页 · Hero 与套餐</h2>
+      <p class="sec__desc">
+        展示级标题用衬线体承担品牌声量，背景铺一层极淡的品牌光晕作为视觉落点；
+        卡片靠悬停抬升（-2px）与阴影升级给出"可点"的信号，而不是靠变色。
+      </p>
+    </div>
+
+    <div class="hero">
+      <div class="hero__glow"></div>
+      <div class="hero__inner">
+        <span class="badge badge--accent">
+          <svg class="icon i12" aria-hidden="true"><use href="#i-sparkles"/></svg>
+          任意学科 · 讲解动画
+        </span>
+        <h3 class="hero__title">把知识点<span class="grad-text">讲成一段</span>看得懂的动画</h3>
+        <p class="hero__lead">
+          输入一个知识点或一道题，AI 先讲清思路、给出分镜大纲，你确认后逐分镜渲染成片。
+          不满意就说一句，只改那一个分镜。
+        </p>
+        <div class="hero__cta">
+          <button class="btn btn--grad btn--lg">
+            开始生成
+            <svg class="icon i16" aria-hidden="true"><use href="#i-arrow-right"/></svg>
+          </button>
+          <button class="btn btn--outline btn--lg">看一个例子</button>
+        </div>
+        <!--
+          示例选题的挑选标准是**"能不能被几何化表达"**，不是学科覆盖率。
+          渲染是确定性的几何动画，所以：
+            ✅ 有明确图形对象、可分解成步骤的（图像、受力、轨迹、查找区间收缩）
+            ❌ 靠意境或生化过程推进的（古诗文的意象、光合作用的分子机制）——
+               它们落不到可画的实体上，硬做出来只会是一堆无意义的箭头和方框。
+        -->
+        <div class="chips">
+          <span class="chip">导数与切线</span>
+          <span class="chip">牛顿第二定律</span>
+          <span class="chip">抛体运动</span>
+          <span class="chip">二分查找</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="feats">
+      <div class="feat">
+        <span class="feat__icon"><svg class="icon i20" aria-hidden="true"><use href="#i-chat"/></svg></span>
+        <h4 class="feat__t">先把思路讲清楚</h4>
+        <p class="feat__b">不是直接甩一个视频。AI 先用文字回答这道题在问什么，再拆成分镜大纲等你确认。</p>
+      </div>
+      <div class="feat">
+        <span class="feat__icon"><svg class="icon i20" aria-hidden="true"><use href="#i-layers"/></svg></span>
+        <h4 class="feat__t">逐分镜渲染</h4>
+        <p class="feat__b">分镜依次渲染、渲好即交付，第一段几秒内就能看。等待可见，不用盯着进度条发呆。</p>
+      </div>
+      <div class="feat">
+        <span class="feat__icon"><svg class="icon i20" aria-hidden="true"><use href="#i-film"/></svg></span>
+        <h4 class="feat__t">只重做那一个</h4>
+        <p class="feat__b">说一句「第三步讲慢一点」，只重做那一个分镜，其余分镜原样保留。</p>
+      </div>
+    </div>
+
+    <div class="plans">
+      <div class="plan-card">
+        <div class="plan-card__head"><h4 class="plan-card__t">体验</h4></div>
+        <p class="plan-card__price"><b class="tnum">0</b><span>次 / 天</span></p>
+        <ul class="plan-card__items">
+          <li><svg class="icon i14" aria-hidden="true"><use href="#i-check"/></svg>每天 3 段</li>
+          <li><svg class="icon i14" aria-hidden="true"><use href="#i-check"/></svg>480p</li>
+          <li><svg class="icon i14" aria-hidden="true"><use href="#i-check"/></svg>分镜可编辑</li>
+        </ul>
+        <button class="btn btn--outline btn--block">当前方案</button>
+      </div>
+      <div class="plan-card plan-card--hl">
+        <div class="plan-card__head">
+          <h4 class="plan-card__t">标准</h4>
+          <span class="badge badge--accent">推荐</span>
+        </div>
+        <p class="plan-card__price"><b class="tnum">39</b><span>元 / 月</span></p>
+        <ul class="plan-card__items">
+          <li><svg class="icon i14" aria-hidden="true"><use href="#i-check"/></svg>每月 120 段</li>
+          <li><svg class="icon i14" aria-hidden="true"><use href="#i-check"/></svg>720p24</li>
+          <li><svg class="icon i14" aria-hidden="true"><use href="#i-check"/></svg>逐分镜重做</li>
+          <li><svg class="icon i14" aria-hidden="true"><use href="#i-check"/></svg>分享链接</li>
+        </ul>
+        <button class="btn btn--grad btn--block">选择标准版</button>
+      </div>
+      <div class="plan-card">
+        <div class="plan-card__head"><h4 class="plan-card__t">班级</h4></div>
+        <p class="plan-card__price"><b class="tnum">199</b><span>元 / 月</span></p>
+        <ul class="plan-card__items">
+          <li><svg class="icon i14" aria-hidden="true"><use href="#i-check"/></svg>每月 800 段</li>
+          <li><svg class="icon i14" aria-hidden="true"><use href="#i-check"/></svg>1080p</li>
+          <li><svg class="icon i14" aria-hidden="true"><use href="#i-check"/></svg>课件导出</li>
+          <li><svg class="icon i14" aria-hidden="true"><use href="#i-check"/></svg>多账号</li>
+        </ul>
+        <button class="btn btn--outline btn--block">联系开通</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======================================================================
+       4 · 浮层
+       ====================================================================== -->
+  <section class="sec">
+    <div class="sec__head">
+      <h2 class="sec__title">弹窗 · 菜单 · 状态提示</h2>
+      <p class="sec__desc">
+        浮层是最容易在暗色下露馅的地方：明度差不够就会糊成一片。
+        弹窗标题一律用<strong>功能级无衬线</strong> —— 「删除 2 条会话」这种高频危险操作要一眼扫过，
+        衬线体的笔锋只会拖慢识别。
+      </p>
+    </div>
+
+    <div class="overlay-grid">
+      <!-- 弹窗 -->
+      <div class="stage">
+        <div class="stage__fake">
+          <div class="skeleton" style="height:12px;width:40%"></div>
+          <div class="skeleton" style="height:12px;width:78%"></div>
+          <div class="skeleton" style="height:12px;width:58%"></div>
+          <div class="skeleton" style="height:96px;width:100%;border-radius:12px"></div>
+        </div>
+        <div class="stage__scrim"></div>
+        <div class="stage__center">
+          <div class="dialog">
+            <div class="dialog__head">
+              <div style="min-width:0;flex:1">
+                <h4 class="dialog__t">删除 2 条会话？</h4>
+                <p class="dialog__d">
+                  会连同对话记录与<strong>已渲染的视频</strong>一起删掉（成片、分段、增量缓存），
+                  <strong>不可撤销</strong>。
+                </p>
+              </div>
+              <button class="icon-btn icon-btn--sm" aria-label="关闭">
+                <svg class="icon i14" aria-hidden="true"><use href="#i-x"/></svg>
+              </button>
+            </div>
+            <div class="dialog__foot">
+              <button class="btn btn--ghost btn--sm">取消</button>
+              <button class="btn btn--danger btn--sm">删除</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 菜单与状态 -->
+      <div class="overlay-side">
+        <div>
+          <p class="mini-title">会话操作菜单</p>
+          <p class="mini-desc">浮层与主界面的明度差、以及选中项的高亮方式。</p>
+          <div class="menu" style="margin-top:10px">
+            <button class="menu__item"><svg class="icon i14" aria-hidden="true"><use href="#i-pencil"/></svg>重命名</button>
+            <button class="menu__item"><svg class="icon i14" aria-hidden="true"><use href="#i-pin"/></svg>置顶</button>
+            <button class="menu__item"><svg class="icon i14" aria-hidden="true"><use href="#i-share"/></svg>分享</button>
+            <div class="menu__sep"></div>
+            <button class="menu__item menu__item--danger"><svg class="icon i14" aria-hidden="true"><use href="#i-trash"/></svg>删除</button>
+          </div>
+        </div>
+
+        <div>
+          <p class="mini-title">状态与轻提示</p>
+          <p class="mini-desc">成功 / 进行中 / 失败 / 演示环境，四档状态色的克制用法。</p>
+          <div class="stack-8" style="margin-top:10px">
+            <div class="row-wrap">
+              <span class="toast">链接已复制</span>
+            </div>
+            <div class="row-wrap">
+              <span class="badge badge--ok">已出片 · 4 个分镜</span>
+              <span class="badge badge--accent">渲染中 3/4</span>
+              <span class="badge badge--warn">演示环境</span>
+              <span class="badge badge--err">第 3 个分镜失败</span>
+            </div>
+            <div class="row-wrap">
+              <button class="btn btn--soft btn--sm">
+                <svg class="icon i14" aria-hidden="true"><use href="#i-download"/></svg>
+                下载 MP4
+              </button>
+              <button class="btn btn--outline btn--sm">取消分享</button>
+            </div>
+            <div>
+              <input class="field" value="https://zhihui.app/share/derivative-slope" readonly aria-label="分享链接" />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <p class="foot">
+    智绘课堂 · UI 设计稿 · 2026-09-15<br />
+    本稿不加载任何外部资源，可直接转发；线上实施以 <code>src/app/globals.css</code> 的语义令牌为唯一真源。
+  </p>
+</div>
+
+<!-- 右下角常驻的主题切换（label 点击即切换上面那个 checkbox） -->
+<label class="theme-fab" for="tswitch">
+  <span class="theme-fab__light">
+    <svg class="icon i14" aria-hidden="true"><use href="#i-moon"/></svg>
+    暗色
+  </span>
+  <span class="theme-fab__dark">
+    <svg class="icon i14" aria-hidden="true"><use href="#i-sun"/></svg>
+    亮色
+  </span>
+</label>
+
+</div>
+</body>
+</html>

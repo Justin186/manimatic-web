@@ -22,25 +22,31 @@ type Props = {
   /**
    * 深色模式：播放器控件层（视频画面之上）用。
    * 轨道、刻度、把手都要换成能在深色画面上看清的配色 —— 浅色主题的
-   * `bg-line` 轨道压在视频上几乎等于隐形。
+   * `bg-border` 轨道压在视频上几乎等于隐形。
    */
   tone?: "light" | "dark";
 };
 
 const STRIPE_LIGHT: Record<SlotState, string> = {
-  ready: "bg-navy-300/40",
-  pending: "bg-canvas",
-  failed: "bg-err-600/25",
+  ready: "bg-fg-subtle/30",
+  pending: "bg-surface-2",
+  failed: "bg-err/25",
 };
 
 const STRIPE_DARK: Record<SlotState, string> = {
   ready: "bg-white/25",
   pending: "bg-white/10",
-  failed: "bg-err-600/45",
+  failed: "bg-err/45",
 };
 
-const STRIPE_IMAGE =
-  "repeating-linear-gradient(45deg, var(--color-line) 0 2px, transparent 2px 8px)";
+/*
+ * 未就绪分镜用斜纹填充而不是纯色：纯色与轨道底色太接近时，
+ * "这一格还没渲染好"就读不出来了。
+ * ⚠️ 这里写的是 `var(--t-border)`（语义令牌）而不是 `var(--color-border)`：
+ *    后者来自 `@theme inline`，`inline` 的语义就是"值被内联进工具类、不再产出变量"，
+ *    拿来当普通 CSS 变量用在 inline style 里并不可靠。
+ */
+const STRIPE_IMAGE = "repeating-linear-gradient(45deg, var(--t-border) 0 2px, transparent 2px 8px)";
 
 const STRIPE_IMAGE_DARK =
   "repeating-linear-gradient(45deg, rgba(255,255,255,0.22) 0 2px, transparent 2px 8px)";
@@ -48,7 +54,7 @@ const STRIPE_IMAGE_DARK =
 /**
  * 整片进度条。
  *
- * 轨道按分镜时长比例铺格，三态各有底色；已播部分用砖橙覆盖，并画分镜边界刻度。
+ * 轨道按分镜时长比例铺格，三态各有底色；已播部分用品牌渐变覆盖，并画分镜边界刻度。
  *
  * 关键点：拖拽时只改本地预览时间（不 seek），松手才回调 —— 避免每帧切 `src` 造成卡顿。
  * 播放中的平滑推进由 `useTimelinePlayer` 的 rAF 保证（原生 `timeupdate` 只有 ~4Hz，
@@ -144,9 +150,10 @@ export function TimelineScrubber({
         onPointerCancel={finishDrag}
         onKeyDown={onKeyDown}
         className={cn(
-          "group relative h-1.5 flex-1 touch-none select-none rounded-full outline-none focus-visible:ring-2 focus-visible:ring-brick-600/40",
+          "group relative h-1.5 flex-1 touch-none select-none rounded-pill outline-none",
+          "focus-visible:ring-[3px] focus-visible:ring-focus",
           // 深色模式把轨道提亮：压在视频画面上太暗会看不清也点不准
-          dark ? "bg-white/25" : "bg-line",
+          dark ? "bg-white/25" : "bg-border",
           noReady ? "cursor-not-allowed opacity-55" : "cursor-pointer",
         )}
       >
@@ -158,7 +165,8 @@ export function TimelineScrubber({
             style={{
               left: at(s.start),
               width: at(s.duration),
-              backgroundImage: s.state === "pending" ? (dark ? STRIPE_IMAGE_DARK : STRIPE_IMAGE) : undefined,
+              backgroundImage:
+                s.state === "pending" ? (dark ? STRIPE_IMAGE_DARK : STRIPE_IMAGE) : undefined,
             }}
           />
         ))}
@@ -169,10 +177,7 @@ export function TimelineScrubber({
           再叠一层 150ms 的 CSS 补间反而不跟手（看起来像"追不上"的拖影）。
           拖拽时本来也是 transition-none，现在统一成"永远直接跟随"。
         */}
-        <span
-          className="absolute inset-y-0 left-0 rounded-full bg-brick-600"
-          style={{ width: `${percent}%` }}
-        />
+        <span className="t-grad absolute inset-y-0 left-0 rounded-pill" style={{ width: `${percent}%` }} />
 
         {/* 分镜边界刻度 */}
         {timeline.slots.slice(1).map((s) => (
@@ -185,29 +190,29 @@ export function TimelineScrubber({
                   ? "bg-white/70"
                   : "bg-white/30"
                 : currentIndex === s.index
-                  ? "bg-navy-900"
-                  : "bg-navy-900/25",
+                  ? "bg-fg"
+                  : "bg-fg/25",
             )}
             style={{ left: at(s.start) }}
           />
         ))}
 
-        {/* 把手：深色模式用白底，浅色模式用藏青描边。left 同样不加过渡，避免追不上 */}
+        {/* 把手：深色模式用白圈，浅色模式用正文色描边。left 同样不加过渡，避免追不上 */}
         {!noReady && (
           <span
             className={cn(
-              "absolute top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 shadow-sm",
-              dark ? "border-white bg-navy-900" : "border-navy-900 bg-white",
-              dragging ? "h-3.5 w-3.5 scale-125" : "h-3.5 w-3.5 group-hover:scale-110",
+              "absolute top-1/2 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-pill border-2 shadow-sm",
+              dark ? "border-white/90 bg-black/55" : "border-fg bg-surface",
+              dragging ? "scale-125" : "group-hover:scale-110",
             )}
             style={{ left: `${percent}%` }}
           />
         )}
 
-        {/* 拖拽中的时间气泡 */}
+        {/* 拖拽中的时间气泡：用反色面，亮暗主题下都压在画面之上可读 */}
         {dragging && (
           <span
-            className="tnum pointer-events-none absolute -top-7 -translate-x-1/2 rounded bg-navy-900 px-1.5 py-0.5 text-xs text-white shadow"
+            className="tnum pointer-events-none absolute -top-7 -translate-x-1/2 rounded-control bg-inverse px-1.5 py-0.5 text-xs text-inverse-fg shadow-raised"
             style={{ left: `${percent}%` }}
           >
             {formatDuration(shown)}
@@ -216,7 +221,7 @@ export function TimelineScrubber({
       </div>
 
       {showTime && (
-        <span className={cn("tnum shrink-0 text-xs", dark ? "text-white/75" : "text-ink-soft")}>
+        <span className={cn("tnum shrink-0 text-xs", dark ? "text-white/75" : "text-fg-muted")}>
           {noReady ? "正在渲染第一个分镜…" : `${formatDuration(shown)} / ${formatDuration(total)}`}
         </span>
       )}

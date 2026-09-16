@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Download, Link2Off, Sparkles } from "lucide-react";
 
+import { mediaUrl } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/primitives";
 import { EmptyState } from "@/components/ui/section";
@@ -36,7 +37,11 @@ type SharePayload = {
   final?: { url: string; durationSec: number } | null;
 };
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
+/**
+ * 服务端取数必须用**绝对地址**：Node 的 fetch 不认相对路径，
+ * 而 `NEXT_PUBLIC_API_BASE_URL` 现在是同源前缀 `/msb`（见 .env.local），用不了。
+ */
+const SERVER_API = process.env.MSB_API_INTERNAL_URL ?? "http://127.0.0.1:8000";
 const USE_MOCK = process.env.NEXT_PUBLIC_USE_MOCK !== "false";
 
 async function loadShare(slug: string): Promise<SharePayload> {
@@ -56,7 +61,7 @@ async function loadShare(slug: string): Promise<SharePayload> {
   }
 
   try {
-    const res = await fetch(`${API_BASE}/api/share/${encodeURIComponent(slug)}`, {
+    const res = await fetch(`${SERVER_API}/api/share/${encodeURIComponent(slug)}`, {
       cache: "no-store",
     });
     if (!res.ok) {
@@ -64,7 +69,14 @@ async function loadShare(slug: string): Promise<SharePayload> {
       console.error(`[share] 拉取 ${slug} 失败：后端返回 ${res.status}`);
       return { ok: false, error: "这段内容暂时打不开，稍后再试试。" };
     }
-    return (await res.json()) as SharePayload;
+    const payload = (await res.json()) as SharePayload;
+    // 后端回的成片地址是 http://localhost:8000/media/... —— 观众多半不在服务器那台机器上，
+    // 这个 localhost 指他自己。换成同源地址，让浏览器走 Next 的 /msb 代理取。
+    return {
+      ...payload,
+      segments: payload.segments?.map((s) => ({ ...s, url: mediaUrl(s.url) })),
+      final: payload.final ? { ...payload.final, url: mediaUrl(payload.final.url) } : payload.final,
+    };
   } catch (e) {
     // 后端没起 / 地址不对。这里不要抛出，让它变成页面上一句能看懂的话 ——
     // 分享页是给别人看的，甩一个 500 页面等于把内部问题暴露给访问者。

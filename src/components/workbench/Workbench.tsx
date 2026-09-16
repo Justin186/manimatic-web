@@ -9,6 +9,7 @@ import {
   deleteThread as deleteThreadApi,
   fetchThreadDetail,
   fetchThreads,
+  mediaUrl,
   patchThread,
   replaceScene,
   retryScene,
@@ -202,13 +203,18 @@ export function Workbench({ threadId }: { threadId?: string }) {
       case "tool_result":
         patchScene(tid, messageId, Number(d.index ?? 0), {
           status: "done",
-          url: String(d.url ?? ""),
+          // 后端给的是 {MSB_PUBLIC_BASE_URL}/media/... 这种绝对地址，默认指向 localhost ——
+          // 局域网访问时那指的是别人自己的机器，必须换成同源地址（见 mediaUrl）。
+          url: mediaUrl(String(d.url ?? "")),
           durationSec: Number(d.durationSec ?? 0),
         });
         break;
 
       case "tool_done":
-        patchRender(tid, messageId, { status: "done", finalUrl: String(d.url ?? "") });
+        patchRender(tid, messageId, {
+          status: "done",
+          finalUrl: mediaUrl(String(d.url ?? "")),
+        });
         break;
 
       case "error": {
@@ -506,7 +512,8 @@ export function Workbench({ threadId }: { threadId?: string }) {
     const st = useStore.getState();
     const list = st.messages[tid] ?? [];
     const idx = list.findIndex((m) => m.id === messageId);
-    const question = [...list.slice(0, idx)].reverse().find((m) => m.role === "user")?.text;
+    const prevUser = [...list.slice(0, idx)].reverse().find((m) => m.role === "user");
+    const question = prevUser?.text;
     if (!question) return;
     // 重新生成要把上一轮的思考一起清掉：不清的话会出现"旧思考 + 新思考"叠在一起，
     // 而且 thinkingStartedAt 还是上一轮的时间，"已思考 N 秒"会直接算飞。
@@ -529,6 +536,10 @@ export function Workbench({ threadId }: { threadId?: string }) {
           // 重新生成复用同一个消息 id：新一轮产物仍然挂在它名下，
           // 刷新后恢复出来还是同一条消息，而不是多出一条空壳。
           message_id: messageId,
+          // **用户那条也要带上 id**：不带的话后端就认不出"这句问过了"，
+          // 于是又追加一条一模一样的提问 —— 记录里同一句问两遍（模型下一轮也会读到两遍）。
+          // 带了 id，后端就把它原地覆盖（见 store.append_thread_message）。
+          user_message_id: prevUser?.id,
         },
         (n, d) => {
           const dd = (d ?? {}) as Record<string, unknown>;

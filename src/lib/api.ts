@@ -25,10 +25,34 @@ export const USE_MOCK = process.env.NEXT_PUBLIC_USE_MOCK !== "false";
  */
 export const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
 
+/**
+ * 后端访问前缀。默认是空串（同源）。
+ *
+ * 现在这个值在 .env.local 里是 `/msb` —— 也就是"本站代理后端"的前缀（next.config.ts），
+ * **不是**后端的地址。局域网下必须这样：别人的浏览器里 `localhost` 是他自己那台机器，
+ * 直连 `http://localhost:8000` 一定失败。
+ */
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "";
 
 function url(path: string) {
   return USE_MOCK ? path : `${API_BASE}${path}`;
+}
+
+/**
+ * 把后端回给我们的**绝对**媒体地址换成同源地址。
+ *
+ * 后端（`api/store.py::media_url`）拼的是 `{MSB_PUBLIC_BASE_URL}/media/...`，
+ * 默认值 `http://localhost:8000` —— 在局域网访问时那个 localhost 指的是**访问者自己的机器**，
+ * 于是"渲染成功、视频全 404"。这里把它换成 `/msb/media/...`，交给同源代理去取。
+ *
+ * 只动 pathname 是 `/media/` 的绝对地址：其它外链（将来真要接 CDN）原样放行，
+ * 免得把不该改的地址也吞掉。`?v=<mtime>` 缓存戳必须保留 ——
+ * 它是"重渲后浏览器别放旧视频"的唯一依据。
+ */
+export function mediaUrl(raw?: string | null): string {
+  if (!raw) return "";
+  const m = /^https?:\/\/[^/?#]+(\/media\/[^?#]*)(\?[^#]*)?/.exec(raw);
+  return m ? `${API_BASE}${m[1]}${m[2] ?? ""}` : raw;
 }
 
 async function post(path: string, body: unknown, onEvent: SSEHandler, signal?: AbortSignal) {
@@ -295,5 +319,21 @@ export function fetchThreads() {
 export function fetchThreadDetail(threadId: string) {
   return json<{ thread_id: string; messages: ThreadMessage[] }>(
     `/api/threads/${encodeURIComponent(threadId)}`,
-  );
+  ).then((r) => ({
+    ...r,
+    // 刷新后恢复出来的视频地址同样要过一遍 mediaUrl：
+    // 这条路径不经过 SSE，漏掉它就会出现"新渲的能放、刷新一下视频就没了"。
+    messages: r.messages.map((m) =>
+      m.render
+        ? {
+            ...m,
+            render: {
+              ...m.render,
+              finalUrl: m.render.finalUrl ? mediaUrl(m.render.finalUrl) : m.render.finalUrl,
+              scenes: m.render.scenes.map((s) => (s.url ? { ...s, url: mediaUrl(s.url) } : s)),
+            },
+          }
+        : m,
+    ),
+  }));
 }

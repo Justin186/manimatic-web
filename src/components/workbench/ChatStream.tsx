@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import { AlertTriangle, Sparkles } from "lucide-react";
 
 import { Avatar } from "@/components/ui/fragments";
+import { MathText } from "@/components/ui/MathText";
 import { RenderProgress } from "./RenderProgress";
 import { StoryboardPlanCard } from "./StoryboardPlanCard";
 import { ThinkingIndicator } from "./ThinkingIndicator";
@@ -97,8 +98,12 @@ export function ChatStream({
                   ⚠️ 这里**不要**加 whitespace-pre-wrap：用户气泡原先就没有它
                       （换行会被折叠）。顺手加上会改变现有排版行为，
                       那是与本次"加图片"无关的改动。
+
+                  用户粘贴的题目里也可能带 `$...$`，所以这里同样走 MathText。
+                  （只认 `$` 标记：没有标记的一律按原文显示，不去猜 ——
+                   见 lib/mathrender.ts 开头的契约说明。）
                 */}
-                {m.text}
+                <MathText text={m.text} />
               </div>
             </div>
           ) : (
@@ -123,7 +128,7 @@ export function ChatStream({
                       m.streaming && "caret",
                     )}
                   >
-                    {m.text}
+                    <MathText text={m.text} />
                   </p>
                 ) : m.streaming && !m.thinking ? (
                   // 没有思考内容时才显示那个孤立的光标：有思考指示器时它已经在动了，

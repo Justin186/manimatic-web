@@ -2,7 +2,7 @@
 
 import { useCallback, useRef, useState } from "react";
 
-import type { SlotState, Timeline } from "@/lib/timeline";
+import { nearestReadyTime, type SlotState, type Timeline } from "@/lib/timeline";
 import { cn, formatDuration } from "@/lib/utils";
 
 type Props = {
@@ -12,6 +12,14 @@ type Props = {
   /** 当前所在分镜序号，用于高亮它左侧的刻度 */
   currentIndex?: number | null;
   onSeek: (globalTime: number) => void;
+  /**
+   * 拖动开始/结束时通知外部。
+   *
+   * 播放器需要它来决定控件层是否保持可见（见 `VideoPlayer` 的 `chromeVisible`）：
+   * 拖动途中鼠标必然会移出画面，而"鼠标移开就淡出控件层"会把整层设成
+   * `pointer-events-none` —— 那会让一次正常的拖动中途断掉。
+   */
+  onDraggingChange?: (dragging: boolean) => void;
   /**
    * 是否在轨道右侧显示行内时间文字，默认显示。
    *
@@ -67,6 +75,7 @@ export function TimelineScrubber({
   globalTime,
   currentIndex,
   onSeek,
+  onDraggingChange,
   showTime = true,
   tone = "light",
 }: Props) {
@@ -94,15 +103,28 @@ export function TimelineScrubber({
     [total],
   );
 
+  /**
+   * 预览落点。
+   *
+   * 第一遍渲染时已就绪的只有最前面几段，指针落到未就绪区间是常态。
+   * 预览必须**当场**吸附到最近的已就绪位置，松手才不会有"拖了没反应、
+   * 一放手又弹回去"的观感 —— 松手时用的是同一个函数，两处口径一致。
+   */
+  const previewTime = useCallback(
+    (clientX: number) => nearestReadyTime(timeline, timeFromClientX(clientX)),
+    [timeline, timeFromClientX],
+  );
+
   const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (noReady) return;
     e.currentTarget.setPointerCapture(e.pointerId);
-    setDragTime(timeFromClientX(e.clientX));
+    onDraggingChange?.(true);
+    setDragTime(previewTime(e.clientX));
   };
 
   const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     if (dragTime === null) return;
-    setDragTime(timeFromClientX(e.clientX));
+    setDragTime(previewTime(e.clientX));
   };
 
   const finishDrag = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -110,6 +132,7 @@ export function TimelineScrubber({
     if (e.currentTarget.hasPointerCapture(e.pointerId)) {
       e.currentTarget.releasePointerCapture(e.pointerId);
     }
+    onDraggingChange?.(false);
     setDragTime(null);
     onSeek(dragTime);
   };

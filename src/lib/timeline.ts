@@ -102,8 +102,20 @@ export function locate(
 }
 
 /**
+ * 时间轴上的边界共享同一个时间值：第 k 格的终点与第 k+1 格的起点相等，
+ * 而 `locate` 取的是**后一格**。所以"吸附到已就绪格子的终点"必须往回退一丁点，
+ * 否则会被判成落进下一格（多半还没渲染），整个 seek 被当成非法目标丢掉。
+ */
+const EDGE_EPS = 0.001;
+
+/**
  * 目标时间落在"渲染中/渲染失败"的格子里时，吸附到最近的**已就绪边界**。
  * 已经在某个已就绪格子内则原样返回。
+ *
+ * ⚠️ 返回值保证能被 `locate` 解回一个 `ready` 的格子 —— 这是调用方（`seekTo`）
+ * 的前提。曾经终点是原样返回的，于是"第一遍渲染时只有第 1 段就绪、往右拖"
+ * 会吸附到第 1 段的终点，`locate` 又把它解成第 2 段（还没渲染）：
+ * seek 被静默丢弃，用户看到的就是**拖了完全没反应**。
  */
 export function nearestReadyTime(timeline: Timeline, globalTime: number): number {
   const ready = timeline.slots.filter((s) => s.state === "ready");
@@ -111,13 +123,15 @@ export function nearestReadyTime(timeline: Timeline, globalTime: number): number
 
   const t = clamp(globalTime, 0, timeline.total);
   for (const s of ready) {
-    if (t >= s.start && t <= s.start + s.duration) return t;
+    // 终点取开区间：闭区间会把"正好落在终点"判给自己，而它其实是下一格的开头
+    if (t >= s.start && t < s.start + s.duration) return t;
   }
 
   let best = ready[0].start;
   let bestDist = Number.POSITIVE_INFINITY;
   for (const s of ready) {
-    for (const edge of [s.start, s.start + s.duration]) {
+    const edges = [s.start, Math.max(s.start, s.start + s.duration - EDGE_EPS)];
+    for (const edge of edges) {
       const d = Math.abs(edge - t);
       if (d < bestDist) {
         bestDist = d;

@@ -127,6 +127,8 @@ export function VideoPlayer({
   const [fallbackFs, setFallbackFs] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [hovered, setHovered] = useState(false);
+  /** 用户正在拖进度条。拖动期间控件层必须保持可交互，见 `chromeVisible` */
+  const [scrubbing, setScrubbing] = useState(false);
   /** 用户是否亲手调过音量：调过就不再强制静音（否则他一改音量就被"重置"回去） */
   const [volumeTouched, setVolumeTouched] = useState(false);
 
@@ -201,11 +203,16 @@ export function VideoPlayer({
    *   - 触摸设备（没有 hover）常显
    *   - 鼠标悬停时显示
    *   - 暂停时保持显示 —— 否则暂停后想再点播放，得先把鼠标移过去等控件浮出来
+   *   - **拖进度条期间保持显示** —— 这条不能省：`onEnded` 换段不会把 `playing`
+   *     置回 false（见 `playback.ts` 的 `onEnded`），于是"渲染中自动续播下一段"
+   *     时播放器一直是播放态；用户此时去拖进度条，指针一移出画面 `hovered`
+   *     立刻变 false，整层控件被设成 `pointer-events-none`，
+   *     一次正常的拖动会在半路断掉 —— 这正是"有时候拖不动"的来源。
    *
    * 注意：倍速的悬停卡片不需要在这里额外兜底。它是容器内的绝对定位元素，
    * 鼠标移到它上面时仍在这个播放器容器内，`hovered` 保持为 true。
    */
-  const chromeVisible = !canHover || hovered || !playing;
+  const chromeVisible = !canHover || hovered || !playing || scrubbing;
 
   const waiting = waitingFor !== null;
 
@@ -346,6 +353,7 @@ export function VideoPlayer({
           globalTime={globalTime}
           currentIndex={activeIndex}
           onSeek={seekTo}
+          onDraggingChange={setScrubbing}
           tone="dark"
           // 三处形态（内联 / 右栏 / 全屏）用完全一样的轨道与刻度；
           // 时间不在这里显示，底行统一给一处，避免重复。
@@ -368,9 +376,16 @@ export function VideoPlayer({
             用户看到的是一条连续的讲解视频，进度条也是按整片铺的；
             再显示"第 3 段 / 共 8 段"会把"这只是技术实现的分片"这件事漏给用户，
             而且换段时数字会跳回去，观感上像倒带。
+
+            ⚠️ 只有"一段都没就绪"是例外：那时进度条整体不可拖（见 TimelineScrubber
+            的 noReady），必须在这里说明原因 —— 控件层传的是 `showTime={false}`，
+            轨道里那句"正在渲染第一个分镜…"根本渲染不出来，不说的话用户面对的是
+            一个没有任何解释、拖了也没反应的进度条。
           */}
           <span className="tnum shrink-0 text-xs">
-            {formatDuration(globalTime)} / {formatDuration(timeline.total)}
+            {timeline.readyCount === 0
+              ? "正在渲染第一个分镜…"
+              : `${formatDuration(globalTime)} / ${formatDuration(timeline.total)}`}
           </span>
 
           {/*

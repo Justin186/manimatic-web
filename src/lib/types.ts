@@ -57,7 +57,20 @@ export type AssistantEvent =
    * 要不要展示是产品决定。收不到这个事件时 UI 照样工作，只是没有思考预览。
    */
   | { type: "thinking_delta"; text: string }
-  | { type: "plan"; plan: PlanStep[]; intent: "propose" | "none" }
+  /**
+   * 大纲 + **视频标题**（模型给的「整个讲解的标题」，见后端 events.plan）。
+   *
+   * ⚠️ 它不是会话标题：会话标题是另一条独立请求生成的（`thread_title` 事件），
+   * 两者不共用 —— 视频标题要能说清讲了什么，会话标题只是侧栏里的短标签。
+   */
+  | { type: "plan"; plan: PlanStep[]; intent: "propose" | "none"; title?: string }
+  /**
+   * 会话标题（侧栏里那个名字），由后端一次独立的短调用生成，1~2 秒就到。
+   *
+   * 为什么它比 plan 早到：那条请求与主生成**并行**，不必等整份分镜生成完。
+   * 收不到就维持"用户输入前 20 字"—— 后端失败时是静默降级，不会报错。
+   */
+  | { type: "thread_title"; title: string }
   | { type: "tool_call"; name: "render_storyboard"; args: { storyboard?: Storyboard; segmentCount: number } }
   | { type: "tool_progress"; step: number; total: number; stage: "prewarm" | "rendering" | "concat" }
   | { type: "tool_result"; index: number; url: string; durationSec: number }
@@ -130,6 +143,13 @@ export type Message = {
    * 「重试时清空 text」这类逻辑顺带把它也清掉，也会污染复制回答的结果。
    */
   thinking?: string;
+  /**
+   * 这条消息对应的**视频标题**（模型给的「整个讲解的标题」）。
+   *
+   * 叫 videoTitle 而不是 title：会话标题是另一回事（存在 threads 里），
+   * 两个都叫 title 迟早会串。
+   */
+  videoTitle?: string;
   /** 是否还在思考（正文已经开始出字、或已结束时为 false） */
   thinkingLive?: boolean;
   /** 思考开始时刻，用来算"已思考 N 秒" */

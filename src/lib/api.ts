@@ -391,6 +391,8 @@ export type ThreadMessage = {
   role: "user" | "assistant";
   text: string;
   createdAt: number;
+  /** 这一轮的视频标题（模型给的「整个讲解的标题」）；没有就由前端兜底 */
+  videoTitle?: string;
   intent?: "propose" | "none";
   plan?: PlanStep[];
   planState?: "none" | "pending" | "confirmed";

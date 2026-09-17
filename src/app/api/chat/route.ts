@@ -27,6 +27,11 @@ export async function POST(req: Request) {
   const canned = rememberCanned(threadId, body.message || "题目图片");
 
   return sse(async (send) => {
+    // 会话标题：真链路上它是一条**与主生成并行**的短请求，1~2 秒就到，
+    // 所以这里也放在最前面 —— 比正文、更比大纲早。
+    // Mock 直接用 canned.title（真后端是由模型另起一次调用生成的，两者不共用）。
+    send("thread_title", { title: canned.title });
+
     // 先模拟"深度思考"：真链路下正文之前有一段只有 thinking_delta 的时间
     // （实测 40~90 秒，见 MathStoryboard/HANDOFF.md §8.12）。
     // 少了这一段，前端那块"正在思考…"在本地就永远测不到。
@@ -55,11 +60,12 @@ export async function POST(req: Request) {
     }
 
     await sleep(220);
+    // title = 「整个讲解的标题」，前端拿它当**视频标题**（不是会话标题）
     if (canned.intent === "propose") {
-      send("plan", { plan: canned.plan, intent: "propose" });
+      send("plan", { plan: canned.plan, intent: "propose", title: canned.title });
     } else {
       // 纯概念问答：不出大纲，这条消息到此结束，就是一次普通对话
-      send("plan", { plan: [], intent: "none" });
+      send("plan", { plan: [], intent: "none", title: canned.title });
     }
 
     send("done", { messageId: `m_${Date.now()}` });

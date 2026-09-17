@@ -110,8 +110,18 @@ export type TimelinePlayerApi = {
   muted: boolean;
   /** 播放倍速 */
   speed: number;
-  seekTo: (globalTime: number) => void;
+  /** 是否循环：整片播完自动回到开头。播完最后一段时的行为由它决定 */
+  loop: boolean;
+  toggleLoop: () => void;
+  /** 整片已经播完、停在结尾（此时点播放/重播都应当从头开始） */
+  ended: boolean;
+  /** 跳到整片的某个时间并起播（点轨道 / 键盘 / 点分镜） */
+  seekTo: (globalTime: number, opts?: { play?: boolean }) => void;
   seekToScene: (index: number) => void;
+  /** 拖动进度条：开始 / 拖动中（画面实时跟随，但不起播）/ 松手 */
+  beginScrub: () => void;
+  scrubTo: (globalTime: number) => void;
+  endScrub: () => void;
   toggle: () => void;
   replay: () => void;
   setVolume: (v: number) => void;
@@ -189,9 +199,27 @@ export function useTimelinePlayer(
    * 若不吞掉，UI 会在切换瞬间以为"被暂停了"而冒出中央播放键。
    */
   const switchingRef = useRef(false);
+  /**
+   * 用户正在拖进度条。
+   * 拖动期间的 seek 只负责"把画面拨到落点"，**绝不起播** ——
+   * 否则一边拖一边播，画面自己往前跑，拖到哪都得和播放位置打架。
+   */
+  const scrubbingRef = useRef(false);
+  /** 拖动之前是不是在播：决定松手后要不要恢复 */
+  const resumeRef = useRef(false);
 
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const [playing, setPlaying] = useState(false);
+  /**
+   * 整片播完、停在结尾。
+   *
+   * 它需要单独存一份，是因为 DOM 侧只有一个"最后一段播完了"的事实（`video.ended`），
+   * 而 UI 要表达的是"**整片**播完了"。有了它，结尾处的中央按钮才能显示成
+   * 「重播」而不是「播放」——否则用户点下去，看到的是只重播最后一段。
+   */
+  const [ended, setEnded] = useState(false);
+  /** 循环：整片播完是否自动回到开头。默认关（停在最后一帧，要重看由用户点中央按钮） */
+  const [loop, setLoopState] = useState(false);
   const [volume, setVolumeState] = useState(1);
   const [muted, setMuted] = useState(defaultMuted);
   const [speed, setSpeedState] = useState(1);
@@ -256,8 +284,35 @@ export function useTimelinePlayer(
     lastResetRef.current = resetKey;
     const first = firstPlayableSlot(timeline);
     pendingSeekRef.current = first ? { index: first.index, local: 0 } : null;
+    setEnded(false);
     setActiveIndex(first ? first.index : null);
   }, [resetKey, timeline]);
+
+  /* ---------------- 重播 / 循环（回到整片开头） ---------------- */
+
+  /**
+   * 回到**整片开头**重新播放。
+   *
+   * ⚠️ 不能只 `setActiveIndex(first)` 就撒手：活跃元素若装的正好是第一段，
+   * 装载 effect 走的是"已装载"分支（②，只 seek、不 play），而结尾处元素是
+   * ended/paused 的 —— 于是画面停在第一帧不动，看着像"点了没反应"。
+   * 所以"元素已经是第一段"这条路径必须显式起播；其余路径（换源 ④ / 换路 ③）
+   * 装载 effect 自己会 play，不用管。
+   */
+  const replay = useCallback(() => {
+    const first = firstPlayableSlot(timeline);
+    if (!first) return;
+    const el = activeElRef.current;
+    const key = first.url ? slotKey(first.index, first.url) : null;
+    pendingSeekRef.current = { index: first.index, local: 0 };
+    setEnded(false);
+    setActiveIndex(first.index);
+    if (el && key && el.dataset.key === key) {
+      el.currentTime = 0;
+      bump();
+      void el.play().catch(() => undefined);
+    }
+  }, [timeline, bump]);
 
   /* ---------------- 播放状态：订阅两路元素的事件 ---------------- */
 
@@ -272,6 +327,8 @@ export function useTimelinePlayer(
       if (!fromActive(e)) return;
       switchingRef.current = false;
       setPlaying(true);
+      // 真的动起来了，就不算"停在结尾"（循环回开头时也会走这里）
+      setEnded(false);
     };
     const onPause = (e: Event) => {
       if (!fromActive(e)) return;
@@ -292,12 +349,15 @@ export function useTimelinePlayer(
       if (!fromActive(e)) return;
       if (activeIndex === null) return;
       const next = nextPlayableSlot(timeline, activeIndex);
-      if (!next) {
-        setPlaying(false);
+      if (next) {
+        pendingSeekRef.current = { index: next.index, local: 0 };
+        setActiveIndex(next.index);
         return;
       }
-      pendingSeekRef.current = { index: next.index, local: 0 };
-      setActiveIndex(next.index);
+      // 整片播完：开了循环就回到开头重播，否则停在最后一段的最后一帧
+      setEnded(true);
+      if (loop) replay();
+      else setPlaying(false);
     };
 
     els.forEach((el) => {
@@ -312,7 +372,7 @@ export function useTimelinePlayer(
         el.removeEventListener("ended", onEnded);
       });
     };
-  }, [deck, timeline, activeIndex]);
+  }, [deck, timeline, activeIndex, loop, replay]);
 
   /* ---------------- 播放中逐帧推进进度 ---------------- */
 
@@ -378,6 +438,11 @@ export function useTimelinePlayer(
 
       // 旧的这一路停下。它的 pause 事件会被"只认活跃元素"的过滤挡掉，不影响 UI
       activeEl.pause();
+      // 拖动预览中：画面已经停在落点了，别起播 —— 用户还在拖
+      if (scrubbingRef.current) {
+        switchingRef.current = false;
+        return;
+      }
       void standby.play().catch(() => {
         switchingRef.current = false;
         setPlaying(false);
@@ -411,6 +476,11 @@ export function useTimelinePlayer(
       // 设完当前时间再同步一次读数，
       // 否则暂停状态下跨段 seek 会停在段起点而不是目标位置
       bump();
+      // 同上：拖动预览只换画面，不起播
+      if (scrubbingRef.current) {
+        switchingRef.current = false;
+        return;
+      }
       // autoplay 可能被浏览器策略拒绝（未静音时），失败就交给用户手动点
       void activeEl.play().catch(() => {
         // 被拒播：退出换源窗口并如实标为暂停 —— 否则 UI 会停在"播放中"但画面不动
@@ -444,7 +514,14 @@ export function useTimelinePlayer(
     // 双保险：备用路绝不能是当前正在播的那一路。真出现说明"活跃路"的判断错了，
     // 此时宁可什么都不做（少预载一次），也绝不能把正在播的元素 load() 掉。
     if (!standby || standby === activeElRef.current || activeIndex === null) return;
-    const next = nextPlayableSlot(timeline, activeIndex);
+    /*
+     * 开着循环时，最后一段之后要接的是**第一段**：提前把它载进备用路，
+     * 循环回开头才能走"换路"（不碰正在播的元素，无黑帧），
+     * 而不是在正在播的元素上换源（`load()` 会先清空画面 —— 那一瞬就是黑帧）。
+     */
+    const next =
+      nextPlayableSlot(timeline, activeIndex) ??
+      (loop && timeline.slots.length > 1 ? firstPlayableSlot(timeline) : null);
     if (!next || next.state !== "ready" || !next.url) return;
 
     const key = slotKey(next.index, next.url);
@@ -464,31 +541,67 @@ export function useTimelinePlayer(
     standby.load();
     standby.defaultPlaybackRate = speed;
     standby.playbackRate = speed;
-  }, [deck, activeSide, timeline, activeIndex, speed]);
+  }, [deck, activeSide, timeline, activeIndex, speed, loop]);
 
   /* ---------------- 命令式操作（都作用于当前活跃元素） ---------------- */
 
   const seekTo = useCallback(
-    (globalTime: number) => {
+    (globalTime: number, opts?: { play?: boolean }) => {
       if (timeline.slots.length === 0) return;
       const hit = locate(timeline, nearestReadyTime(timeline, globalTime));
       if (!hit || hit.slot.state !== "ready" || !hit.slot.url) return;
 
+      /*
+       * 跨段要不要换源，只取决于**目标段变没变**：
+       * 同段内的连续拖动每次都只是改 `currentTime`，真正切 `src` 只在拖过
+       * 分镜边界的那一刻发生 —— 拖动 8 个分镜最多换 8 次源，不会每帧换。
+       */
       const el = activeElRef.current;
       if (el && el.dataset.key === slotKey(hit.slot.index, hit.slot.url)) {
         el.currentTime = hit.localTime;
         // seek 落在同一段上：立即同步进度，否则进度条会停在旧位置直到下一个事件
         bump();
-        void el.play().catch(() => undefined);
+        // 暂停态下 seek 也要刷新画面：设了 currentTime 浏览器就会解码显示那一帧
+        if (opts?.play ?? true) void el.play().catch(() => undefined);
         return;
       }
       // 跨段：记下"目标段 + 落点"。它同时是装载前那一帧的读数回退值，
       // 否则进度条会先跳到目标段的开头、下一帧才挪到真正的落点（肉眼可见的一闪）
       pendingSeekRef.current = { index: hit.slot.index, local: hit.localTime };
+      setEnded(false);
       setActiveIndex(hit.slot.index);
     },
     [timeline, bump],
   );
+
+  /**
+   * 拖动预览三件套。
+   *
+   * 为什么要有别于 `seekTo`：拖动时画面必须**跟着指针实时变**，但绝不能起播 ——
+   * 一边拖一边播，画面自己往前跑，指针位置和播放位置会互相打架。
+   * 所以拖动期间一律走"只拨画面"的分支（装载 effect 里 `scrubbingRef` 的两处判断）。
+   *
+   * 松手后是否恢复播放，取决于**拖之前**是否在播（暂停时拖完仍然暂停）。
+   * 换段是异步的：若目标段还没装上，起播交给装载 effect（那时 `scrubbingRef` 已复位）。
+   */
+  const beginScrub = useCallback(() => {
+    resumeRef.current = playing;
+    scrubbingRef.current = true;
+    const el = activeElRef.current;
+    if (el && !el.paused) el.pause();
+  }, [playing]);
+
+  const scrubTo = useCallback(
+    (globalTime: number) => seekTo(globalTime, { play: false }),
+    [seekTo],
+  );
+
+  const endScrub = useCallback(() => {
+    scrubbingRef.current = false;
+    const el = activeElRef.current;
+    if (resumeRef.current && el && el.paused) void el.play().catch(() => undefined);
+    resumeRef.current = false;
+  }, []);
 
   const seekToScene = useCallback(
     (index: number) => {
@@ -504,22 +617,21 @@ export function useTimelinePlayer(
     if (!el) return;
     // 用户主动操作：立刻结束换源窗口，别让随后的 pause 事件被当成副作用吞掉
     switchingRef.current = false;
+    /*
+     * ⚠️ 停在整片结尾时，**不能**直接 `play()`。
+     * 按规范，`ended` 的元素再调 `play()` 会先把播放位置拨回"**当前这一段**的开头"
+     * 再播 —— 也就是只重播最后一个分镜，进度条显示的也是最后一段的起点而非 0。
+     * 用户在这里的意图是"再看一遍整片"，所以改走 replay：回到第一个分镜。
+     */
+    if (el.ended) {
+      replay();
+      return;
+    }
     if (el.paused) void el.play().catch(() => undefined);
     else el.pause();
-  }, []);
+  }, [replay]);
 
-  const replay = useCallback(() => {
-    const first = firstPlayableSlot(timeline);
-    if (!first) return;
-    const el = activeElRef.current;
-    pendingSeekRef.current = { index: first.index, local: 0 };
-    setActiveIndex(first.index);
-    if (el && el.dataset.key === slotKey(first.index, first.url ?? "")) {
-      el.currentTime = 0;
-      bump();
-      void el.play().catch(() => undefined);
-    }
-  }, [timeline, bump]);
+  const toggleLoop = useCallback(() => setLoopState((v) => !v), []);
 
   const setVolume = useCallback((v: number) => {
     const next = Math.min(Math.max(v, 0), 1);
@@ -605,8 +717,14 @@ export function useTimelinePlayer(
     volume,
     muted,
     speed,
+    loop,
+    toggleLoop,
+    ended,
     seekTo,
     seekToScene,
+    beginScrub,
+    scrubTo,
+    endScrub,
     toggle,
     replay,
     setVolume,

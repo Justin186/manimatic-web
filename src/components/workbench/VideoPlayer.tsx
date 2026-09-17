@@ -9,6 +9,7 @@ import {
   Minimize,
   Pause,
   Play,
+  Repeat,
   RotateCcw,
   Share2,
   Volume1,
@@ -105,10 +106,15 @@ export function VideoPlayer({
     volume,
     muted,
     speed,
+    loop,
+    toggleLoop,
+    ended,
     seekTo,
     seekToScene,
+    beginScrub,
+    scrubTo,
+    endScrub,
     toggle,
-    replay,
     setVolume,
     setSpeed,
     toggleMute,
@@ -169,6 +175,23 @@ export function VideoPlayer({
     readyNotify.current?.(player);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playing, activeIndex, timeline.total, timeline.readyCount]);
+
+  /*
+   * 拖动进度条的开始/结束。
+   *
+   * 拖动期间画面必须**跟着指针走**，所以 hook 会把播放先按住（否则一边拖一边播，
+   * 画面自己往前跑，指针位置和播放位置互相打架）；松手再按"拖之前是否在播"恢复。
+   *
+   * `scrubbing` 同时用于保持控件层可见（见 `chromeVisible`）。
+   */
+  const onDraggingChange = useCallback(
+    (dragging: boolean) => {
+      setScrubbing(dragging);
+      if (dragging) beginScrub();
+      else endScrub();
+    },
+    [beginScrub, endScrub],
+  );
 
   const onToggleFullscreen = useCallback(async () => {
     // 已经在降级全屏里：直接退出
@@ -293,15 +316,20 @@ export function VideoPlayer({
         </div>
       )}
 
-      {/* 中央大播放键：暂停/未播时显示 */}
-      {!playing && !waiting && timeline.readyCount > 0 && (
+      {/*
+        中央大播放键：暂停/未播时显示。
+
+        整片播完停在结尾时换成「重播」图标：那一点下去是**整片从头再来**
+        （见 playback.ts 的 toggle），继续画播放三角会让人以为只是接着播最后一段。
+      */}
+      {!playing && !waiting && !scrubbing && timeline.readyCount > 0 && (
         <button
           type="button"
           onClick={toggle}
-          aria-label="播放"
+          aria-label={ended ? "重播" : "播放"}
           className="t-tx absolute left-1/2 top-1/2 z-20 grid h-14 w-14 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-pill bg-black/55 text-white backdrop-blur hover:bg-black/75"
         >
-          <Play className="ml-0.5 h-6 w-6" />
+          {ended ? <RotateCcw className="h-6 w-6" /> : <Play className="ml-0.5 h-6 w-6" />}
         </button>
       )}
 
@@ -352,8 +380,10 @@ export function VideoPlayer({
           timeline={timeline}
           globalTime={globalTime}
           currentIndex={activeIndex}
-          onSeek={seekTo}
-          onDraggingChange={setScrubbing}
+          // 落点：只拨位置，起播交给 endScrub（拖之前在播才恢复）
+          onSeek={(t) => seekTo(t, { play: false })}
+          onPreview={scrubTo}
+          onDraggingChange={onDraggingChange}
           tone="dark"
           // 三处形态（内联 / 右栏 / 全屏）用完全一样的轨道与刻度；
           // 时间不在这里显示，底行统一给一处，避免重复。
@@ -512,15 +542,26 @@ export function VideoPlayer({
             </div>
           </div>
 
-          {/* 重播：同样三处都给（"从头再看一遍"在哪都得能点到） */}
+          {/*
+            循环：整片播完是否自动回到开头。默认开 —— 讲解视频停在结尾没有意义，
+            而"播完就停"会让用户以为渲染卡住了。
+            开着时整片播完会接回第 1 分镜；关掉则停在最后一帧，
+            此时中央大按钮会变成「重播」（RotateCcw），点它整片从头再来。
+
+            ⚠️ 这里不再单放一个「重播」按钮：它和循环图标都是"转圈"造型，
+            挨在一起分不清。重播是低频操作，交给结尾处的中央大按钮就够了。
+          */}
           <button
             type="button"
-            onClick={replay}
-            aria-label="重播"
-            title="重播"
-            className="grid h-7 w-7 place-items-center rounded transition-colors hover:bg-white/10"
+            onClick={toggleLoop}
+            aria-label={loop ? "关闭循环" : "开启循环"}
+            title={loop ? "循环播放：开" : "循环播放：关"}
+            className={cn(
+              "grid h-7 w-7 place-items-center rounded transition-colors hover:bg-white/10",
+              loop ? "text-accent" : "text-white/90",
+            )}
           >
-            <RotateCcw className="h-4 w-4" />
+            <Repeat className="h-4 w-4" />
           </button>
 
           {/*

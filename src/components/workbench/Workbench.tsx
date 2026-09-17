@@ -461,7 +461,14 @@ export function Workbench({ threadId }: { threadId?: string }) {
               plan,
               intent,
               planState: intent === "propose" ? "pending" : "none",
+              // 视频标题：模型给的「整个讲解的标题」。没有就留空，走下面的兜底。
+              videoTitle: String(d.title ?? "").trim() || undefined,
             });
+          } else if (name === "thread_title") {
+            // 会话标题（AI 起的）。它比 plan 早到 —— 那条请求与主生成并行。
+            // 收不到就维持发消息时那版"用户输入前 20 字"，后端是静默降级。
+            const t = String(d.title ?? "").trim();
+            if (t) patchThreadLocal(tid, { title: t });
           } else if (name === "done") {
             patchMessage(tid, asstId, { streaming: false, thinkingLive: false });
           } else if (name === "error") {
@@ -645,7 +652,9 @@ export function Workbench({ threadId }: { threadId?: string }) {
       list.push({
         messageId: m.id,
         version: m.version ?? 1,
-        title: m.plan?.[0]?.title ?? m.text.slice(0, 24) ?? "讲解视频",
+        // 标题优先用模型给的「整个讲解的标题」；它是**视频**的名字，
+        // 第一个分镜名（plan[0].title）只是其中一镜的名字，不适合代表整条片子。
+        title: m.videoTitle || m.plan?.[0]?.title || m.text.slice(0, 24) || "讲解视频",
         render: m.render,
         createdAt: m.createdAt,
       });

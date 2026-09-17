@@ -11,7 +11,18 @@ type Props = {
   globalTime: number;
   /** 当前所在分镜序号，用于高亮它左侧的刻度 */
   currentIndex?: number | null;
+  /** 松手（落点确定）时调用：真正跳过去 */
   onSeek: (globalTime: number) => void;
+  /**
+   * 拖动**过程中**每次指针移动都调用：让画面跟着指针走（拖动预览）。
+   *
+   * 不传就是"只动进度条、松手才跳"的旧行为。
+   *
+   * ⚠️ 它必须比 `onSeek` 便宜：同一段内的连续拖动落到播放器那边只是改
+   * `video.currentTime`（不切 `src`），只有拖过分镜边界才会换源。
+   * 所以"每帧回调"不会造成"每帧切 src"—— 那是这条交互唯一会卡的情形。
+   */
+  onPreview?: (globalTime: number) => void;
   /**
    * 拖动开始/结束时通知外部。
    *
@@ -64,7 +75,9 @@ const STRIPE_IMAGE_DARK =
  *
  * 轨道按分镜时长比例铺格，三态各有底色；已播部分用品牌渐变覆盖，并画分镜边界刻度。
  *
- * 关键点：拖拽时只改本地预览时间（不 seek），松手才回调 —— 避免每帧切 `src` 造成卡顿。
+ * 拖拽时进度条走本地预览时间，**同时**用 `onPreview` 让画面跟着指针实时变；
+ * 松手才用 `onSeek` 定最终落点。切 `src` 只发生在拖过分镜边界时（同段内只改
+ * `currentTime`），所以不会"每帧换源"。
  * 播放中的平滑推进由 `useTimelinePlayer` 的 rAF 保证（原生 `timeupdate` 只有 ~4Hz，
  * 直接用它会让进度条一跳一跳）。
  *
@@ -75,6 +88,7 @@ export function TimelineScrubber({
   globalTime,
   currentIndex,
   onSeek,
+  onPreview,
   onDraggingChange,
   showTime = true,
   tone = "light",
@@ -119,12 +133,17 @@ export function TimelineScrubber({
     if (noReady) return;
     e.currentTarget.setPointerCapture(e.pointerId);
     onDraggingChange?.(true);
-    setDragTime(previewTime(e.clientX));
+    const t = previewTime(e.clientX);
+    setDragTime(t);
+    onPreview?.(t);
   };
 
   const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     if (dragTime === null) return;
-    setDragTime(previewTime(e.clientX));
+    const t = previewTime(e.clientX);
+    setDragTime(t);
+    // 画面跟着指针走：同一段内只是改 currentTime，跨段才换源
+    onPreview?.(t);
   };
 
   const finishDrag = (e: React.PointerEvent<HTMLDivElement>) => {

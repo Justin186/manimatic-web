@@ -90,6 +90,25 @@ export type RenderState = {
 
 /* ---------------- 消息与会话 ---------------- */
 
+/**
+ * 一张随消息发出的图片（前端只存"这一轮要传的"形态）。
+ *
+ * ⚠️ `dataUrl` 是完整的 `data:image/...;base64,...`，**只活在内存里**：
+ *    后端明确不落盘、不进会话历史（见 MathStoryboard/api/routes/chat.py 里
+ *    assistant 落盘那段），所以刷新页面后图片就没了 —— 这是刻意的诚实降级，
+ *    比"假装能回显"好。别把它写进 localStorage 或往会话接口里塞。
+ */
+export type ImageAttachment = {
+  /** 本地唯一 id（React key + 删除用），与后端无关 */
+  id: string;
+  /** data URL；发给后端时直接放进 `images[].data` */
+  dataUrl: string;
+  /** 原始文件名（选择文件时有；粘贴截图时给个默认名），只用于显示 */
+  name: string;
+  /** 原始字节数（前端压缩前的，只用于显示"3.2MB"这类提示） */
+  bytes: number;
+};
+
 export type PlanState = "none" | "pending" | "confirmed" | "discarded";
 
 export type Message = {
@@ -115,6 +134,12 @@ export type Message = {
   thinkingLive?: boolean;
   /** 思考开始时刻，用来算"已思考 N 秒" */
   thinkingStartedAt?: number;
+  /**
+   * 这条用户消息带上的图片（**只在本轮内存里**，刷新后不再有，见 ImageAttachment）。
+   *
+   * 放在 Message 上而不是别处：气泡渲染图片需要它，而气泡的唯一数据源就是 Message。
+   */
+  images?: ImageAttachment[];
 };
 
 export type Thread = {

@@ -250,9 +250,29 @@ export type ChatRequest = {
    */
   message_id?: string;
   user_message_id?: string;
+  /**
+   * 随这一轮发出的题目图片（**base64 data URL**，见后端 `storyboard/vision.py`
+   * 的 `normalize_many`）。
+   *
+   * 后端把它与普通问答做成了**同一个** `/api/chat`（可选字段），
+   * 所以这里不需要按"有没有图"切换端点。
+   *
+   * 前端**不做压缩** —— 压缩全部交给后端 Pillow（确定性的；浏览器 canvas 编码
+   * 在不同平台上对同一张图可能给出不同结果）。"压多少"只能有一处实现，
+   * 否则前端压一次后端再压一次，出问题不知道看哪边。
+   */
+  images?: { data: string }[];
 };
 
-/** 对话：text_delta → plan → done */
+/**
+ * 对话：text_delta → plan → done。
+ *
+ * ⚠️ 带图与不带图**打同一个端点** —— 后端把它们做成了同一个 `/api/chat`
+ *    （多一个可选的 `images` 字段），因为"这一轮有没有图"不该改变接口契约：
+ *    事件序列、重试策略、留档、取消全都一样，只有 messages 的构造不同。
+ *    （早期图片输入是个独立插件、有独立端点 `/api/vi/chat`，已合并进 core，
+ *    理由见 HANDOFF §8.68。）
+ */
 export function streamChat(req: ChatRequest, onEvent: SSEHandler, signal?: AbortSignal) {
   return post("/api/chat", req, onEvent, signal);
 }

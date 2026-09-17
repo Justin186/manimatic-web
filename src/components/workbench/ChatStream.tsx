@@ -70,6 +70,34 @@ export function ChatStream({
                 再加一圈描边就成了"描边 + 填充"的双重标注，显重。
               */}
               <div className="max-w-[85%] rounded-card rounded-br-[5px] bg-solid px-4 py-2.5 text-sm leading-relaxed text-solid-fg">
+                {/*
+                  图片缩略图在文字**上面**：与"发出去的样子"一致（用户先选图再打字），
+                  也和后端送进模型的顺序一致（图在前、文在后）。
+
+                  ⚠️ 只贴图不打字时 m.text 是空串 —— 那种情况整个 <p> 不渲染，
+                      否则气泡里会多出一行空白把图片顶下去。
+                  ⚠️ 刷新后图片会消失（后端不存图，见 ImageAttachment 的说明）。
+                      这不是 bug，是刻意的诚实降级；文字还在，所以气泡不会变空。
+                */}
+                {m.images && m.images.length > 0 && (
+                  <div className="mb-2 flex flex-wrap gap-2">
+                    {m.images.map((img) => (
+                      // eslint-disable-next-line @next/next/no-img-element -- data URL 无法走 next/image 优化
+                      <img
+                        key={img.id}
+                        src={img.dataUrl}
+                        alt={img.name}
+                        // 限高而不是限宽：题目照片多是竖的，限宽会让它撑得很高
+                        className="max-h-48 rounded-control border border-solid-fg/15 object-contain"
+                      />
+                    ))}
+                  </div>
+                )}
+                {/*
+                  ⚠️ 这里**不要**加 whitespace-pre-wrap：用户气泡原先就没有它
+                      （换行会被折叠）。顺手加上会改变现有排版行为，
+                      那是与本次"加图片"无关的改动。
+                */}
                 {m.text}
               </div>
             </div>

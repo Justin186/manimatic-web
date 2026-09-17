@@ -1,17 +1,26 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ArrowUp, Loader2 } from "lucide-react";
+import { ArrowUp, ImagePlus, Loader2, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import {
+  MAX_IMAGES,
+  humanSize,
+  imageFilesFromClipboard,
+  rejectReason,
+  toAttachments,
+} from "@/lib/images";
 import { QUICK_PROMPTS } from "@/lib/mock-data";
+import { useToast } from "@/components/ui/toast";
+import type { ImageAttachment } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 import { ModelPicker } from "./ModelPicker";
 
 type Props = {
   busy: boolean;
-  onSend: (text: string) => void;
+  onSend: (text: string, images?: ImageAttachment[]) => void;
   onAbort?: () => void;
   /**
    * 紧凑模式：隐藏底部那行快捷键提示，只留输入框本身。
@@ -23,7 +32,16 @@ type Props = {
 
 export function Composer({ busy, onSend, onAbort, compact }: Props) {
   const [value, setValue] = useState("");
+  /**
+   * 待发送的图片。**只在这里存一份**：发送成功后清空，不往 store 里塞 ——
+   * 图片只在"这一轮请求"里有意义，发出去之后它的使命就结束了
+   * （后端不落盘，见 types.ts 的 ImageAttachment 说明）。
+   */
+  const [images, setImages] = useState<ImageAttachment[]>([]);
+  const [reading, setReading] = useState(false);
   const ref = useRef<HTMLTextAreaElement | null>(null);
+  const fileRef = useRef<HTMLInputElement | null>(null);
+  const toast = useToast();
 
   useEffect(() => {
     const el = ref.current;
@@ -32,11 +50,61 @@ export function Composer({ busy, onSend, onAbort, compact }: Props) {
     el.style.height = `${Math.min(el.scrollHeight, 168)}px`;
   }, [value]);
 
+  /**
+   * 收一批图。校验（格式/体积/张数）在这里统一做，两条入口共用。
+   *
+   * ⚠️ 逐张判 `current + 已收数`，不能只用初始的 `images.length`：
+   *    一次选 6 张时，前 4 张收下、第 5 张才该被拒 —— 用初始值会全部通过。
+   */
+  const addFiles = async (files: File[]) => {
+    if (!files.length) return;
+    const accepted: File[] = [];
+    let slots = MAX_IMAGES - images.length;
+    const reasons: string[] = [];
+    for (const f of files) {
+      if (slots <= 0) {
+        reasons.push(`一次最多 ${MAX_IMAGES} 张图片`);
+        break;
+      }
+      const why = rejectReason(f, MAX_IMAGES - slots);
+      if (why) {
+        reasons.push(why);
+        continue;
+      }
+      accepted.push(f);
+      slots -= 1;
+    }
+    if (reasons.length) toast(reasons[0]);
+
+    if (!accepted.length) return;
+    setReading(true);
+    try {
+      const { attachments, errors } = await toAttachments(accepted);
+      if (attachments.length) setImages((prev) => [...prev, ...attachments].slice(0, MAX_IMAGES));
+      if (errors.length) toast(errors[0]);
+    } finally {
+      setReading(false);
+    }
+  };
+
+  /** 粘贴：**只在真的拿到图片时才 preventDefault**，否则会吃掉"粘一段文字" */
+  const onPaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const files = imageFilesFromClipboard(e.clipboardData);
+    if (!files.length) return;
+    e.preventDefault();
+    void addFiles(files);
+  };
+
+  const removeImage = (id: string) => setImages((prev) => prev.filter((it) => it.id !== id));
+
+  const canSend = Boolean(value.trim() || images.length);
   const submit = () => {
-    const text = value.trim();
-    if (!text || busy) return;
-    onSend(text);
+    if (!canSend || busy || reading) return;
+    // 只传了图没写字时，text 是空串 —— 后端允许（它会补一个占位记录），
+    // 前端也不需要替它编一句"这是什么图"。
+    onSend(value.trim(), images.length ? images : undefined);
     setValue("");
+    setImages([]);
   };
 
   /*
@@ -84,19 +152,55 @@ export function Composer({ busy, onSend, onAbort, compact }: Props) {
           busy ? "border-accent/40" : "border-border focus-within:border-accent",
         )}
       >
+        {/*
+          缩略图条：只在有图时占位（没图时整块不渲染，输入框高度一点都不变）。
+          横向可滚动 + 单行不折行：4 张 56px 的缩略图在窄屏上也要能一眼看全。
+        */}
+        {images.length > 0 && (
+          <div className="mb-2 flex flex-wrap gap-2">
+            {images.map((img) => (
+              <div
+                key={img.id}
+                className="group relative h-16 w-16 shrink-0 overflow-hidden rounded-control border border-border bg-bg-subtle"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element -- data URL 无法走 next/image 优化 */}
+                <img
+                  src={img.dataUrl}
+                  alt={img.name}
+                  className="h-full w-full object-cover"
+                />
+                <button
+                  type="button"
+                  onClick={() => removeImage(img.id)}
+                  aria-label={`移除 ${img.name}`}
+                  className={cn(
+                    "absolute right-0.5 top-0.5 grid h-5 w-5 place-items-center rounded-full",
+                    "bg-fg/70 text-bg opacity-0 transition-opacity group-hover:opacity-100",
+                    "focus-visible:opacity-100",
+                  )}
+                >
+                  <X className="h-3 w-3" />
+                </button>
+                <span className="sr-only">{humanSize(img.bytes)}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
         <textarea
           ref={ref}
           rows={1}
           value={value}
           disabled={busy}
           onChange={(e) => setValue(e.target.value)}
+          onPaste={onPaste}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();
               submit();
             }
           }}
-          placeholder={compact ? "输入一个知识点或一道题" : "继续提问，或说说要改哪里"}
+          placeholder={compact ? "输入一道题，或粘贴 / 上传题目照片" : "继续提问，或粘贴题目照片"}
           className={cn(
             "max-h-60 w-full resize-none bg-transparent text-base leading-7 text-fg outline-none",
             "placeholder:text-fg-subtle disabled:opacity-60",
@@ -121,7 +225,53 @@ export function Composer({ busy, onSend, onAbort, compact }: Props) {
           8px 会贴着正文，30px 是一道空槽，**12px 才是"分成两块"又不空**的量。
         */}
         <div className="mt-3 flex items-center justify-between gap-2">
-          <ModelPicker disabled={busy} />
+          <div className="flex items-center gap-1">
+            <ModelPicker disabled={busy} />
+            {/*
+              上传按钮放在模型胶囊**右边**，而不是塞进发送键那一侧：
+              右侧那一列是"动作区"（发送/停止），左边这一列是"提问前的选择"
+              （模型、以及本轮要不要带图）。跟 ModelPicker 并排读起来是一件事。
+            */}
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={() => fileRef.current?.click()}
+              // 张数已满时禁用，并靠 title 说明原因 —— 一个点了没反应的按钮
+              // 比一个明确禁用的按钮更让人困惑
+              disabled={busy || reading || images.length >= MAX_IMAGES}
+              aria-label="上传题目图片"
+              title={
+                images.length >= MAX_IMAGES
+                  ? `最多 ${MAX_IMAGES} 张图片`
+                  : "上传题目图片（也可以直接 Ctrl+V 粘贴截图）"
+              }
+              className="h-9 w-9"
+            >
+              {reading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <ImagePlus className="h-4 w-4" />
+              )}
+            </Button>
+            {/*
+              input 藏在旁边。`multiple` 一次可选多张（题干 + 图形分拍是常见用法），
+              `accept` 只是给文件选择器一个默认过滤，**不做校验** ——
+              用户仍能切到"所有文件"，真正的把关在 addFiles 里。
+            */}
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/gif,image/bmp"
+              multiple
+              hidden
+              onChange={(e) => {
+                void addFiles(Array.from(e.target.files ?? []));
+                // 清空 value：不清的话，连续选同一个文件第二次不会触发 change，
+                // 表现为"删掉再加回来加不上"
+                e.target.value = "";
+              }}
+            />
+          </div>
           {busy ? (
             <Button size="icon" variant="soft" onClick={onAbort} aria-label="停止生成">
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -131,7 +281,8 @@ export function Composer({ busy, onSend, onAbort, compact }: Props) {
               size="icon"
               variant="grad"
               onClick={submit}
-              disabled={!value.trim()}
+              // 有图也算"有内容"：只贴图不打字是最常见的一次提问方式
+              disabled={!canSend || reading}
               aria-label="发送"
             >
               <ArrowUp className="h-4 w-4" />
@@ -186,7 +337,9 @@ export function Composer({ busy, onSend, onAbort, compact }: Props) {
           compact && "hidden",
         )}
       >
-        <p className="truncate">Enter 发送 · Shift + Enter 换行 · ⌘/Ctrl + \ 收起历史栏</p>
+        <p className="truncate">
+          Enter 发送 · Shift + Enter 换行 · Ctrl+V 粘贴题目截图 · ⌘/Ctrl + \ 收起历史栏
+        </p>
       </div>
     </div>
   );

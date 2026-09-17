@@ -21,7 +21,7 @@ import { useStore } from "@/lib/store";
 import { abortStream, registerStream, unregisterStream } from "@/lib/streams";
 import { useLocalStorage, useMediaQuery } from "@/lib/use-ui";
 import { cn, uid } from "@/lib/utils";
-import type { Message, PlanStep, RenderState } from "@/lib/types";
+import type { ImageAttachment, Message, PlanStep, RenderState } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, SheetContent } from "@/components/ui/dialog";
 import { Input, Textarea } from "@/components/ui/primitives";
@@ -384,7 +384,7 @@ export function Workbench({ threadId }: { threadId?: string }) {
 
   /* ---------------- 主动作 ---------------- */
 
-  async function send(text: string) {
+  async function send(text: string, images?: ImageAttachment[]) {
     if (busy) return;
 
     // 草稿模式：**这一刻**才生成会话 id。
@@ -401,7 +401,15 @@ export function Workbench({ threadId }: { threadId?: string }) {
     // 这两个 id 不只是本地的事：要随请求发给后端落盘。
     // 刷新后前端正是靠 assistant 那个 id 把自己的气泡和后端产出的分镜/视频重新对上。
     const userMsgId = uid("mu");
-    appendMessage(tid, { id: userMsgId, role: "user", text, createdAt: Date.now() });
+    appendMessage(tid, {
+      id: userMsgId,
+      role: "user",
+      text,
+      // 图片挂在用户这条消息上：气泡要渲染它。**只在本轮内存里** ——
+      // 后端不落盘（见 ImageAttachment），刷新后这一项自然消失。
+      images,
+      createdAt: Date.now(),
+    });
     const asstId = uid("ma");
     appendMessage(tid, {
       id: asstId,
@@ -414,9 +422,12 @@ export function Workbench({ threadId }: { threadId?: string }) {
 
     // 标题：第一条消息的前 20 字（后端推导标题用的是同一规则）。
     // 这里同时也是"把会话登记进侧栏"的唯一时机。
+    //
+    // ⚠️ 只贴图不打字时 text 是空串 —— 直接 slice 会得到空标题，
+    //    侧栏那条会话就没有名字可显示。所以退回到"题目图片"。
     const cur = threads.find((t) => t.id === tid);
     if (!cur || cur.title === "新的讲解" || cur.title === "默认会话") {
-      ensureThread(tid, text.slice(0, 20));
+      ensureThread(tid, text.slice(0, 20) || (images?.length ? "题目图片" : ""));
     }
 
     // 会话真开始了才改 URL。change 到 /app/t/<id> 会让 Workbench 重挂载，
@@ -433,6 +444,9 @@ export function Workbench({ threadId }: { threadId?: string }) {
           overrides: { style },
           message_id: asstId,
           user_message_id: userMsgId,
+          // 有图与无图打的是同一个 /api/chat（后端把图片做成了可选字段）。
+          // Workbench 不需要知道有两个端点。
+          images: images?.length ? images.map((it) => ({ data: it.dataUrl })) : undefined,
         },
         (name, data) => {
           const d = (data ?? {}) as Record<string, unknown>;

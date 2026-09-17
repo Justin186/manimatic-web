@@ -43,6 +43,27 @@ const nextConfig: NextConfig = {
   async rewrites() {
     return [{ source: `${PROXY_PREFIX}/:path*`, destination: `${BACKEND}/:path*` }];
   },
+
+  /**
+   * 转发（rewrites）到后端的**上游空闲超时**，单位毫秒。
+   *
+   * ⚠️ Next 的默认值是 **30 秒**，且这不是"整个请求最多 30 秒"，而是**socket 空闲超时**：
+   *    上游 30 秒没吐字节，代理就把这条连接掐掉。
+   *    出处：node_modules/next/dist/server/lib/router-utils/proxy-request.js
+   *         `proxyTimeout: proxyTimeout === null ? undefined : proxyTimeout || 30000`
+   *
+   * 生成大纲恰好会长时间**一个字节都不发** —— 开深度思考的模型光思考就 50 秒起步
+   * （实测首字 ~50s，长思考可到几分钟），这期间 SSE 流上是空的。
+   * 症状就是"生成半天、前端却报 network error"，而后端那条任务明明还在正常跑。
+   * 后端侧的对策是定期发 SSE 心跳（api/pipeline.py，MSB_SSE_HEARTBEAT_SEC，默认 15s）；
+   * 这里把代理的魔数放大到 30 分钟（比后端单条渲染超时 RENDER_TIMEOUT=900s 还大一倍），
+   * 让"空闲"由心跳去解决，而不是由代理层替我们做决定。
+   *
+   * ⚠️ 别写 `null`：源码里只有 `=== null` 才表示"不超时"，但配置 schema 是 `.number()`，
+   *    写 null 会被校验打回（并打一条 Invalid next.config 警告）。写一个大数最稳。
+   * ⚠️ `experimental.*` 只在 `next dev` 生效；生产是网关反代，超时要单独配（≥120s）。
+   */
+  experimental: { proxyTimeout: 30 * 60 * 1000 },
 };
 
 export default nextConfig;

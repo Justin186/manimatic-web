@@ -55,6 +55,59 @@ export function mediaUrl(raw?: string | null): string {
   return m ? `${API_BASE}${m[1]}${m[2] ?? ""}` : raw;
 }
 
+/* ---------------- 连接层失败的识别与措辞 ----------------
+ *
+ * 背景：生成大纲可能跑很久（开了深度思考的模型，光思考就几分钟）。
+ * 这期间要是连接被掐断，前端拿到的是浏览器的原生异常 ——
+ * Chrome/Edge `TypeError: Failed to fetch`、Firefox `NetworkError when
+ * attempting to fetch resource.`、Safari `Load failed`。**原样显示出去就是一句
+ * 英文 "network error"，用户只会理解成"超时了/你们崩了"**，而实际上：
+ *
+ *  1. /api/chat 的生成在独立线程里跑，**浏览器断开并不会让它停** ——
+ *     结果照常落盘（assistant 记录里带 plan/intent），刷新页面就能看到大纲；
+ *  2. 真正死于超时的是"这条 HTTP 连接"，不是"这次生成"。
+ *
+ * 所以这里做两件事：把这类异常识别出来，并给出一句**带出路**的话（刷新可见结果）。
+ * ⚠️ 不要把这类失败和业务失败混为一谈：前者"任务可能还在跑"，后者"任务已经失败"。
+ */
+
+/** 终点事件：收到它才算这条流**正常走完**了。 */
+const TERMINAL_EVENTS = new Set(["done"]);
+
+function isAbort(err: unknown): boolean {
+  return err instanceof DOMException && err.name === "AbortError";
+}
+
+function asMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
+/**
+ * 是不是"连接层面"的失败（而不是业务失败）。
+ *
+ * 主要判据是 `TypeError`：fetch 在请求没发出去/流被掐断时抛的就是它。
+ * 文案兜一层是因为并非所有环境都守这个约定，而这类错误**误判成业务失败的代价更大**
+ * （会让用户以为要重新生成一次，白烧一轮几分钟的 token）。
+ */
+function isConnectionFailure(err: unknown): boolean {
+  // ⚠️ 不用宽泛的 `connection` 之类做关键词：那样会把后端真报上来的业务错误
+  //（'Connection refused' 之类）也吞成"连接中断，任务可能还在跑" —— 那比不识别更坏。
+  return err instanceof TypeError || /failed to fetch|network ?error|load failed/i.test(asMessage(err));
+}
+
+/**
+ * 连接断了/流提前结束时给用户的那句话。
+ *
+ * 刻意**不带接口路径**：这是给用户看的，" /api/chat " 对他没有任何信息量，
+ * 反而会让这句话看起来像一条技术报错。核心是后半句 —— 告诉用户**去哪儿拿结果**。
+ * 措辞对聊天与渲染两条链都成立，所以不传"大纲"还是"视频"。
+ */
+function connectionLost(why: string): Error {
+  return new Error(
+    `${why}。任务可能仍在后台继续 —— 稍等一会儿刷新页面，看看结果是否已经出来。`,
+  );
+}
+
 async function post(path: string, body: unknown, onEvent: SSEHandler, signal?: AbortSignal) {
   const res = await fetch(url(path), {
     method: "POST",
@@ -66,7 +119,26 @@ async function post(path: string, body: unknown, onEvent: SSEHandler, signal?: A
     const detail = await res.text().catch(() => "");
     throw new Error(`${path} 返回 ${res.status}${detail ? `：${detail.slice(0, 200)}` : ""}`);
   }
-  await readSSE(res, onEvent);
+
+  // 记下这条流有没有走到终点事件。
+  // 必须记：readSSE 在服务端正常关闭流时是**静默返回**的 —— 不区分的话，
+  // "生成到一半连接断了"和"生成完了"在 UI 上长得一模一样（后者还会让人以为成功）。
+  let finished = false;
+  try {
+    await readSSE(res, (name, data) => {
+      if (TERMINAL_EVENTS.has(name)) finished = true;
+      onEvent(name, data);
+    });
+  } catch (err) {
+    if (isAbort(err)) throw err; // 用户点了"停止"：原样抛回，别包装成失败
+    if (isConnectionFailure(err)) {
+      throw connectionLost("与服务器的连接中断了（长时间没有数据时，网络或代理会掐掉空闲连接）");
+    }
+    throw err;
+  }
+  if (!finished) {
+    throw connectionLost("连接提前结束了（没收到完成信号）");
+  }
 }
 
 /* ---------------- LLM 配置（设置页） ----------------

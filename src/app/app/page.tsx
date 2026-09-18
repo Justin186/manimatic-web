@@ -1,3 +1,4 @@
+import { RequireAuth } from "@/components/auth/RequireAuth";
 import { Workbench } from "@/components/workbench/Workbench";
 
 /**
@@ -12,5 +13,9 @@ import { Workbench } from "@/components/workbench/Workbench";
  * 草稿模式让"没说过话的会话"压根不存在，也就无所谓要不要清理它。
  */
 export default function AppIndex() {
-  return <Workbench />;
+  return (
+    <RequireAuth>
+      <Workbench />
+    </RequireAuth>
+  );
 }

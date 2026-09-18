@@ -3,18 +3,10 @@
 import Link from "next/link";
 import { PanelLeft, PanelRight, Plus, Sparkles } from "lucide-react";
 
+import { UserMenuButton } from "@/components/auth/UserMenuButton";
 import { Button } from "@/components/ui/button";
-import { Avatar } from "@/components/ui/fragments";
 import { IconButton } from "@/components/ui/icon-button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-  Tooltip,
-} from "@/components/ui/popover";
+import { Tooltip } from "@/components/ui/popover";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 
 type Props = {
@@ -38,6 +30,10 @@ type Props = {
  * 尺寸或 hover 底色差一点就会被看出来是"拼的"。
  * 会话标题用 `text-fg-muted` 而不是正文色：它是"当前在哪"的定位信息，
  * 不该和页面里真正的内容抢注意力。
+ *
+ * ⚠️ 账号那块（头像 / 菜单 / 退出 / 管理后台入口）**整块交给 `UserMenuButton`**：
+ *    落地页顶栏用的是同一个组件。曾经这里是各写一份的，结果是"登录了、
+ *    落地页却还写着登录"这类两处不一的毛病。身份这种东西只能有一个出处。
  */
 export function TopBar({
   title,
@@ -85,27 +81,7 @@ export function TopBar({
           </Tooltip>
         ) : null}
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button className="ml-0.5 shrink-0 rounded-pill" aria-label="账号与设置">
-              <Avatar fallback="学" className="h-8 w-8" />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent>
-            <DropdownMenuLabel>测试账号（不发真邮件）</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem asChild>
-              <Link href="/settings">画像与偏好设置</Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem asChild>
-              <Link href="/pricing">配额与套餐</Link>
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem asChild>
-              <Link href="/login">切换账号</Link>
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <UserMenuButton />
       </div>
     </header>
   );

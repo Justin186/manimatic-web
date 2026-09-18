@@ -108,16 +108,118 @@ function connectionLost(why: string): Error {
   );
 }
 
+/**
+ * 401 的统一处理：**跳登录页**，并把"现在在哪"带上（登录完回到原地）。
+ *
+ * 为什么放在这一层而不是每个调用点各写一遍：`/api/**` 现在整段需要登录，
+ * 而前端有七八个入口会打它。漏一处的结果是"某个页面莫名其妙一直空着"
+ * （请求 401 → 抛错 → 页面显示空态），而不是"跳去登录"—— 那种症状指不到鉴权上。
+ *
+ * ⚠️ 两个例外必须放过：
+ *   1. `/api/auth/*` 自身的接口 —— 401 在那里是有意义的**返回值**（密码错、
+ *      未登录时的 me），跳转会把人从登录页踢回登录页，转圈。
+ *   2. 服务端渲染（`window` 不存在）—— 那是分享页那条路，它压根不需要登录。
+ */
+function onUnauthorized(path: string) {
+  if (typeof window === "undefined") return;
+  if (path.startsWith("/api/auth/")) return;
+  const here = window.location.pathname + window.location.search;
+  // 只带**站内路径**（单个 `/` 开头，`//evil.com` 这种协议相对 URL 也要挡）。
+  // 登录页会再校验一次 —— 这是防开放重定向的第二道，不能只靠一边。
+  const next =
+    here.startsWith("/") && !here.startsWith("//")
+      ? `?next=${encodeURIComponent(here)}`
+      : "";
+  // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- 这里**故意**要整页跳转：401 意味着会话没了，而 store 里还留着上一个会话的数据，客户端路由不会清掉它
+  window.location.href = `/login${next}`;
+}
+
+/**
+ * 带状态码的错误。
+ *
+ * ⚠️ 为什么要专门做个类，而不是"往 message 里塞 401 然后 `includes("401")`"：
+ *    那是靠**文本**认语义 —— 后端一句"第 401 步失败"就能让调用方误判成
+ *    "没登录"然后跳登录页。状态码是结构化的信息，就该用结构化的方式带出来。
+ */
+export class ApiError extends Error {
+  readonly status: number;
+  readonly code: string;
+
+  constructor(message: string, status: number, code = "") {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.code = code;
+  }
+}
+
+/** 是不是"没登录/登录失效"。调用方据此决定"跳登录"还是"报错"。 */
+export function isUnauthorized(err: unknown): boolean {
+  return err instanceof ApiError && err.status === 401;
+}
+
+/**
+ * 把后端的错误响应翻成**一句人话**。
+ *
+ * ============================================================================
+ * 为什么值得单独抽出来（这是一次真实的糟糕体验）
+ * ============================================================================
+ * 后端所有错误响应都是 `{"ok": false, "error": "<能照着做的中文>", "code": "..."}`，
+ * 但前端原来是直接 `throw new Error(path + " 返回 400：" + 响应体)` ——
+ * 于是登录页上弹出的是这么一串：
+ *
+ *     /api/auth/register 返回 400: {"ok":false,"error":"这个密码太常见了，换一个",...}
+ *
+ * **后端点名要说的话被包在 JSON 里了**：用户看到的是接口路径和花括号，
+ * 而"换一个密码"这五个字埋在中间。这跟本项目反复强调的
+ * "报错要能据以行动"是直接冲突的。
+ *
+ * 三条规则，按优先级：
+ *   1. 响应体里**有 `error`** → 原样用它（后端已经把人话说好了）
+ *   2. 没有（比如网关回的 HTML、500 空体）→ 给一句带状态码的说明
+ *   3. 解析不了 JSON → 也走第 2 条
+ */
+export async function apiErrorFrom(res: Response, path: string): Promise<ApiError> {
+  const raw = await res.text().catch(() => "");
+  let message = "";
+  let code = "";
+  try {
+    const body = JSON.parse(raw) as { error?: unknown; code?: unknown; detail?: unknown };
+    if (typeof body?.error === "string" && body.error.trim()) {
+      message = body.error.trim();
+      code = typeof body.code === "string" ? body.code : "";
+    } else if (typeof body?.detail === "string" && body.detail.trim()) {
+      // FastAPI 自己的校验错误长这样（`{"detail": "..."}`）
+      message = body.detail.trim();
+    }
+  } catch {
+    /* 不是 JSON（网关的 HTML 错误页之类）→ 走下面的兜底 */
+  }
+  if (!message) {
+    message =
+      res.status === 401
+        ? "未登录或登录已失效"
+        : `${path} 返回 ${res.status}${raw ? `：${raw.slice(0, 160)}` : ""}`;
+  }
+  return new ApiError(message, res.status, code);
+}
+
 async function post(path: string, body: unknown, onEvent: SSEHandler, signal?: AbortSignal) {
   const res = await fetch(url(path), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
     signal,
+    // 同源代理下浏览器本来就会带 Cookie；显式写出来是为了"直连后端调试"
+    // （那时候是跨源，默认的 same-origin 不会带 Cookie，症状是登录成功但下一个请求 401）
+    credentials: "same-origin",
   });
   if (!res.ok) {
-    const detail = await res.text().catch(() => "");
-    throw new Error(`${path} 返回 ${res.status}${detail ? `：${detail.slice(0, 200)}` : ""}`);
+    const err = await apiErrorFrom(res, path);
+    // 401 走"跳登录"；**先把错误建好再跳** —— 调用方还要 catch 到它，
+    // 跳转是整页导航，但当前这轮 promise 仍需以异常收尾。
+    if (err.status === 401) onUnauthorized(path);
+    throw err;
   }
 
   // 记下这条流有没有走到终点事件。
@@ -181,7 +283,7 @@ export type LlmProfilesResponse = {
   };
 };
 
-async function json<T>(
+export async function json<T>(
   path: string,
   body?: unknown,
   method?: "GET" | "POST" | "PATCH" | "DELETE",
@@ -192,10 +294,14 @@ async function json<T>(
     method: method ?? (body === undefined ? "GET" : "POST"),
     headers: { "Content-Type": "application/json" },
     body: body === undefined ? undefined : JSON.stringify(body),
+    // 登录态靠 HttpOnly Cookie，必须让浏览器带上（同源代理下是自动的，
+    // 但直连后端调试时不是 —— 见 post() 里的同一段说明）
+    credentials: "same-origin",
   });
   if (!res.ok) {
-    const detail = await res.text().catch(() => "");
-    throw new Error(`${path} 返回 ${res.status}${detail ? `：${detail.slice(0, 200)}` : ""}`);
+    const err = await apiErrorFrom(res, path);
+    if (err.status === 401) onUnauthorized(path);
+    throw err;
   }
   return (await res.json()) as T;
 }

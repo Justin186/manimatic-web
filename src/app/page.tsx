@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArrowRight, Check, Film, Layers, MessageSquareText, Sparkles } from "lucide-react";
 
+import { UserMenuButton } from "@/components/auth/UserMenuButton";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/primitives";
@@ -63,9 +64,13 @@ export default function LandingPage() {
               <Link href="/pricing">套餐</Link>
             </Button>
             <ThemeToggle size="sm" />
-            <Button variant="outline" size="sm" asChild className="hidden sm:inline-flex">
-              <Link href="/login">登录</Link>
-            </Button>
+            {/*
+              ⚠️ 这里原来是写死的「登录」按钮 —— 登录了也写着"登录"，
+                 让人以为登录没生效。现在整块交给 UserMenuButton：
+                 未登录 = 登录按钮，已登录 = 头像 + 菜单（含管理后台入口）。
+                 这个组件与工作台 TopBar 共用，两处不会再各说各话。
+            */}
+            <UserMenuButton size="sm" />
             <Button size="sm" variant="grad" asChild>
               <Link href="/app">进入创作台</Link>
             </Button>

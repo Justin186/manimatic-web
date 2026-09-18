@@ -1,3 +1,4 @@
+import { RequireAuth } from "@/components/auth/RequireAuth";
 import { Workbench } from "@/components/workbench/Workbench";
 
 export default async function ThreadPage({
@@ -6,5 +7,9 @@ export default async function ThreadPage({
   params: Promise<{ threadId: string }>;
 }) {
   const { threadId } = await params;
-  return <Workbench threadId={threadId} />;
+  return (
+    <RequireAuth>
+      <Workbench threadId={threadId} />
+    </RequireAuth>
+  );
 }

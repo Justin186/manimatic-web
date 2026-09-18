@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Check, Monitor, Moon, Sparkles, Sun } from "lucide-react";
 
+import { RequireAuth } from "@/components/auth/RequireAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { SEGMENTED_GROUP, SegmentedControl, segmentItemClass } from "@/components/ui/segmented";
@@ -23,7 +24,20 @@ const GRADES = ["初中", "高一", "高二", "高三", "大学"];
  */
 const SUBJECTS = ["数学", "物理", "化学", "生物", "语文", "英语"];
 
+/**
+ * 设置页整体要登录：这里能**写入模型 API 密钥**（`/api/llm/profile`），
+ * 而后端那条路由挂在 `/api/` 之下、由闸门保护 —— 未登录时页面会拿到 401。
+ * 所以守卫放在最外层，而不是等某个卡片自己报错。
+ */
 export default function SettingsPage() {
+  return (
+    <RequireAuth>
+      <SettingsContent />
+    </RequireAuth>
+  );
+}
+
+function SettingsContent() {
   const profile = useStore((s) => s.profile);
   const setProfile = useStore((s) => s.setProfile);
   const style = useStore((s) => s.style);

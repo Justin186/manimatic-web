@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import {
   Check,
+  Images,
   Link2,
   MessageSquareText,
   MoreHorizontal,
@@ -238,6 +239,14 @@ export function ThreadSidebar({
                           {t.title}
                         </span>
                         {t.pinned ? <Pin className="h-3 w-3 shrink-0 text-accent" /> : null}
+                        {/*
+                          已发布到画廊。与分享标记（链接图标）并列但**外形必须能区分**：
+                          两个都表示"公开了"，但一个是"给知道链接的人"，
+                          一个是"摆在作品墙上"。用同一个图标就等于告诉用户它们是同一件事。
+                        */}
+                        {t.gallery ? (
+                          <Images className="h-3 w-3 shrink-0 text-fg-subtle" />
+                        ) : null}
                         {t.shared ? <Link2 className="h-3 w-3 shrink-0 text-fg-subtle" /> : null}
                       </span>
                       {/* 相对时间依赖 `Date.now()`，服务端与 hydration 可能算出不同文字 */}

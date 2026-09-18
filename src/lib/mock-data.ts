@@ -4,14 +4,28 @@ import type { PlanStep, Thread } from "./types";
  * Mock 数据。
  *
  * 视频用的是**你们自己渲出来的真画面**（从 ../MathStoryboard/output 拷到 public/demo）：
- *   derivative_s0~s3   = free_derivative 的 4 个分镜片段（--parallel 逐分镜渲染产物）
- *   pythagorean_s0~s3  = free_pythagorean 成片按分镜时长切分
+ *   fewshot_derivative_s0~s4  = 提示词里 few-shot **示例 1** 的 5 个分镜片段
+ *                               （`examples/fewshot_derivative.json` 的真渲染产物）
+ *   derivative_s0~s3          = free_derivative 的 4 个分镜片段（旧演示，**已无引用**）
+ *   pythagorean_s0~s3         = free_pythagorean 成片按分镜时长切分
  * 所以演示里"分镜级进度 + 逐段播放"看到的是真实效果，不是占位图。
+ *
+ * ⚠️ fewshot 那组是 **720p30**（`-q m`）渲的，重渲命令：
+ *      python generate.py examples/fewshot_derivative.json --name fewshot_derivative_demo --split -q m
+ *    产物在 `output/videos/<name>_scene/720p30/StoryboardScene.mp4`（成片）与
+ *    `output/_parts/<name>/segments/<name>_s<i>/720p30/StoryboardScene.mp4`（分镜）。
+ *    ⚠️ `--split` 的分段落在 `_parts/`，**不在** `sections/`（那是 `--split` 之外那条
+ *    路径才写的），别去 `sections/` 找。
+ *    ⚠️ 换质量档之后 `segmentDurations` **必须重新量**（见下），别沿用旧值。
  *
  * ⚠️ `segmentDurations` 是 ffprobe 量出来的**真实帧时长**，语义等价于后端
  * `sections/index.json` 的 `duration`（manim 按真实帧数算的）。
  * 它和 `plan[].durationSec`（大纲设计值）**故意不同** —— 前端必须用前者铺时间轴，
  * 否则分镜定位会漂（见 docs/分镜实时交付-契约与前端改造.md §2）。
+ *
+ * ⚠️ 它还和**渲染质量档**绑定（每段时长要按帧取整，15fps 与 30fps 的边界不一样）。
+ *    实测同一份分镜：480p15 合计 55.467s，720p30 合计 56.932s。
+ *    所以「换档重渲」和「改分镜」一样，都必须重新量一遍这组数。
  */
 
 export type Canned = {
@@ -69,28 +83,51 @@ const THINKING_CONCEPT =
   "那就直接用文字回答，并且明确告诉他「想要动画就把具体题目发来」—— " +
   "要把这条路指出来，不然用户会以为这个产品做不了动画。";
 
+/**
+ * 演示成片：**就是给模型看的那份 few-shot 示例 1**（`examples/fewshot_derivative.json`）。
+ *
+ * ⚠️ 这里刻意与提示词里的示例 1 保持**同一份内容**（同一个题、同样的 5 镜、同样的标题、
+ *    同样的 outline）：首页那句"真实生成的一段"于是成了字面意义上的真话 ——
+ *    观众看到的这一段，正是模型每次写分镜之前都要先看一遍的那个示范。
+ *    换成另一段视频（哪怕更漂亮）会立刻破掉这层关系，而那是这个页面唯一有分量的东西。
+ *
+ * ⚠️ 所以改这里之前先想清楚：要么同时改提示词里的示例 1（`storyboard/llm.py` 的
+ *    `_EXAMPLE` 读的那个文件），要么就别改。
+ *
+ * ⚠️ `plan` 用的是**示例文件里的 outline**（模型自己拟的分镜大纲），
+ *    `segmentDurations` 是 ffprobe 量的**真实帧时长**。
+ *    两者故意不同（大纲 7.4/13.4/13.8/11.8/7.2，实际 7.4/13.8/14.2/12.2/7.867）——
+ *    前端时间轴只能吃后者，用大纲值会让分镜定位整体漂掉（见 timeline.ts 的说明）。
+ *    这也是"设计值 vs 真实值"最容易看出来的一个例子，所以别顺手把它们"统一"了。
+ */
 export const DERIVATIVE: Canned = {
   key: "derivative",
   match: /导数|切线|斜率|求导|derivative/i,
-  title: "导数就是切线的斜率",
+  title: "导数就是切线斜率",
   brief:
-    "导数描述的是「变化有多快」。对 y = x² 来说，函数在 x 处的导数就是曲线在那一点切线的斜率；代入求导公式可得 y′ = 2x。所以 x = -1 时斜率为 -2，x = 0 时为 0，x = 3 时为 6 —— 切线会跟着点一起转动。",
+    "导数说的是「函数在这一点变化得有多快」。以 y = x² 为例：先在曲线上取两点，算出这段的平均变化率 Δy/Δx = 2 + Δx；再让 Δx 趋近 0，这个比值逼近 2 —— 它正是曲线在 (1, 1) 处切线的斜率。然后用导数的定义把 y′ = 2x 一步步算出来（正统做法），最后带出常用求导公式：它们都是同一个定义算出来的。",
   plan: [
-    { id: 1, title: "抛出问题", durationSec: 4.5, summary: "导数到底在量什么？先给一句直觉解释" },
-    { id: 2, title: "画出抛物线", durationSec: 9, summary: "在坐标系上画出 y = x²，标出坐标轴" },
-    { id: 3, title: "动点 + 切线", durationSec: 13, summary: "一个点沿曲线滑动，切线实时跟随，右上角显示当前斜率" },
-    { id: 4, title: "归纳结论", durationSec: 6, summary: "y′ = 2x，斜率随 x 线性变化" },
+    { id: 1, title: "要求的是什么", durationSec: 7.4, summary: "摆出题目：求 y = x² 在 x = 1 处的切线斜率；并点出「一个点给不出上升和前进的比」" },
+    { id: 2, title: "先算平均变化率", durationSec: 13.4, summary: "再取一点、连成割线，标出 Δx 与 Δy 两条边，把 Δx 代进公式看比值随它变小" },
+    { id: 3, title: "每一点都有自己的斜率", durationSec: 13.8, summary: "Δx 趋于 0，割线趋近切线；旁边同步放出 y′ = 2x 的图像，两个点一起走 —— 扫完收口到「求切线斜率就是求导」" },
+    { id: 4, title: "正统做法：用定义算一遍", durationSec: 11.8, summary: "用导数的定义把 y = x² 的导数一步步算出来（定义 → 代入 → 展开 → 约分取极限，每步旁边有注释），得到 y′ = 2x，x = 1 处即 2 —— 和图上看到的一致" },
+    { id: 5, title: "常用求导公式", durationSec: 7.2, summary: "把这一题的结果推广成一张公式表（幂函数、三角函数、指数、对数），并点明它们都是同一个定义算出来的 —— 公式只是省掉每次重推" },
   ],
   segments: [
-    "/demo/derivative_s0.mp4",
-    "/demo/derivative_s1.mp4",
-    "/demo/derivative_s2.mp4",
-    "/demo/derivative_s3.mp4",
+    "/demo/fewshot_derivative_s0.mp4",
+    "/demo/fewshot_derivative_s1.mp4",
+    "/demo/fewshot_derivative_s2.mp4",
+    "/demo/fewshot_derivative_s3.mp4",
+    "/demo/fewshot_derivative_s4.mp4",
   ],
-  // ffprobe 实测：5.199 / 14.333 / 10.733 / 6.667（合计 36.93s）
-  // 对照大纲设计值 4.5 / 9 / 13 / 6（合计 32.5s）—— 差异正是"必须用真实时长"的理由
-  segmentDurations: [5.199333, 14.333333, 10.733008, 6.666667],
-  final: "/demo/derivative_full.mp4",
+  // ffprobe 实测各分镜真实帧时长（合计 56.932s，与成片时长一致）
+  //
+  // ⚠️ 这组数与**渲染质量档绑定**，换档必须重新量：同一份分镜在 480p15 下是
+  //    7.400/13.800/14.200/12.200/7.867（合计 55.467），在 720p30 下变成下面这组 ——
+  //    因为每段时长要按**帧**取整，15fps 与 30fps 的边界位置不同。
+  //    差别看着只有半秒上下，但分镜定位是逐段累加的，累积到第 5 镜就会偏出 1.5 秒。
+  segmentDurations: [8.066, 14.066, 14.467, 12.467, 7.866],
+  final: "/demo/fewshot_derivative_full.mp4",
   intent: "propose",
   thinking: THINKING_DERIVATIVE,
 };
@@ -161,12 +198,17 @@ export const SEED_THREADS: Thread[] = [
     title: "导数就是切线的斜率",
     subtitle: "4 个分镜 · 已出片",
     updatedAt: Date.now() - 1000 * 60 * 12,
+    // 与 Mock 画廊列表（src/app/api/gallery/route.ts）里的演示作品对应：
+    // `demo` 这条是"我的"，所以侧栏这里也要带上已发布标记，
+    // 否则同一条会话在侧栏说没发布、在画廊说已发布 —— 两处对不上就成了新的困惑。
+    gallery: true,
   },
   {
     id: "t_pyth",
     title: "勾股定理：面积证法",
     subtitle: "4 个分镜 · 草稿",
     updatedAt: Date.now() - 1000 * 60 * 60 * 3,
+    // 这条在 Mock 里是"别人（林老师）发布的"，所以本账号侧栏里不该出现发布标记
   },
   {
     id: "t_quad",

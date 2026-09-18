@@ -2,9 +2,10 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Sparkles } from "lucide-react";
+import { Loader2, Sparkles } from "lucide-react";
 
 import {
+  cancelThread,
   confirmRender,
   deleteThread as deleteThreadApi,
   fetchThreadDetail,
@@ -13,7 +14,6 @@ import {
   patchThread,
   replaceScene,
   retryScene,
-  setThreadShare,
   streamChat,
   USE_MOCK,
 } from "@/lib/api";
@@ -21,15 +21,16 @@ import { useStore } from "@/lib/store";
 import { abortStream, registerStream, unregisterStream } from "@/lib/streams";
 import { useLocalStorage, useMediaQuery } from "@/lib/use-ui";
 import { cn, uid } from "@/lib/utils";
-import type { ImageAttachment, Message, PlanStep, RenderState } from "@/lib/types";
+import { videoTitleOf, type ImageAttachment, type Message, type PlanStep, type RenderState } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, SheetContent } from "@/components/ui/dialog";
-import { Input, Textarea } from "@/components/ui/primitives";
+import { Textarea } from "@/components/ui/primitives";
 import { useToast } from "@/components/ui/toast";
 
 import { ArtifactPanel, type Artifact } from "./ArtifactPanel";
 import { ChatStream } from "./ChatStream";
 import { Composer } from "./Composer";
+import { ShareDialog } from "./ShareDialog";
 import { ThreadSidebar } from "./ThreadSidebar";
 import { TopBar } from "./TopBar";
 
@@ -73,8 +74,15 @@ export function Workbench({ threadId }: { threadId?: string }) {
   const [ttlDays, setTtlDays] = useState(0);
   /** 待确认删除的会话 id（null = 没在确认）。确认框归这里管，侧栏只负责发起 */
   const [pendingDelete, setPendingDelete] = useState<string[] | null>(null);
-  /** 分享链接弹窗的内容；null = 关着 */
-  const [shareInfo, setShareInfo] = useState<{ id: string; url: string } | null>(null);
+  /**
+   * 分享弹窗作用的会话 id；null = 关着。
+   *
+   * ⚠️ 只存 id，**不存"已经建好的链接"**：链接由弹窗自己去申请。
+   *    以前是"调用方先建链接、再开弹窗"，于是"建链接"这件事有四个实现方
+   *    （侧栏 / 内联卡片 / 右栏详情 / 移动端抽屉），这次加"发布到画廊"
+   *    就得记得改四处。
+   */
+  const [shareTarget, setShareTarget] = useState<string | null>(null);
   /**
    * 轻提示。
    *
@@ -103,6 +111,16 @@ export function Workbench({ threadId }: { threadId?: string }) {
   const autoRetried = useRef<Set<string>>(new Set());
   /** 已水合过的会话 id：切回来时不再重拉，本地那份可能更新（比如正在渲染） */
   const hydrated = useRef<Set<string>>(new Set());
+
+  /**
+   * 这条会话后端还有任务在跑（**刷新前发起的那一轮**）。
+   *
+   * 为什么需要它：客户端断开不再等于取消（见 lib/streams.ts 与后端
+   * api/pipeline.py 的 stream()）—— 按了 F5 之后那一轮会在服务端跑完并落盘，
+   * 但刷新出来的界面只剩"一句提问"，看起来跟死了一样。这条状态把实际情况
+   * 说出来，并给出"停止"这个出口。
+   */
+  const [bgRunning, setBgRunning] = useState(false);
 
   /**
    * 是否正在生成。**从消息自己派生出来，不另设一份状态**。
@@ -159,6 +177,7 @@ export function Workbench({ threadId }: { threadId?: string }) {
         //    没有这层守卫，所以它没事，看起来就像只有详情坏掉了。
         if (!alive) return;
         hydrated.current.add(threadId);
+        setBgRunning(r.running);
         if (r.messages.length) hydrateMessages(threadId, r.messages);
       },
       () => {
@@ -170,6 +189,39 @@ export function Workbench({ threadId }: { threadId?: string }) {
       alive = false;
     };
   }, [threadId, hydrateMessages]);
+
+  /**
+   * 后台那一轮跑完了吗？跑完就把结果拉回来。
+   *
+   * 为什么要轮询而不是"让用户自己刷新"：刷新前发起的那一轮在服务端是**继续跑**的
+   * （断开不再等于取消），跑完才落盘。不做这一步，用户看到的就是
+   * "只有一句提问"的一屏，只能靠一次次手刷去猜 —— 而多刷几次发现没有结果，
+   * 他就会重新问一遍（那会掐掉后台那一轮，反而是白花钱）。
+   */
+  useEffect(() => {
+    if (!threadId || !bgRunning) return;
+    let alive = true;
+    const timer = window.setInterval(() => {
+      void fetchThreadDetail(threadId).then(
+        (r) => {
+          if (!alive) return;
+          if (r.running) return;                 // 还在跑，下一轮再问
+          setBgRunning(false);
+          // ⚠️ 本地正在生成（这一轮是用户自己刚发的）就别覆盖 —— 后端那份只会更旧。
+          const local = useStore.getState().messages[threadId] ?? [];
+          if (local.some((m) => m.streaming)) return;
+          if (r.messages.length) hydrateMessages(threadId, r.messages);
+        },
+        () => {
+          /* 拉不到（网络抖动/后端重启）→ 下一轮再试，不打扰用户 */
+        },
+      );
+    }, 5000);
+    return () => {
+      alive = false;
+      window.clearInterval(timer);
+    };
+  }, [threadId, bgRunning, hydrateMessages]);
 
   /* ---------------- 事件分发 ---------------- */
 
@@ -332,28 +384,16 @@ export function Workbench({ threadId }: { threadId?: string }) {
     }
   }
 
-  async function shareRemote(id: string) {
-    try {
-      const r = await setThreadShare(id, true);
-      if (!r.ok || !r.slug) throw new Error(r.error || "生成分享链接失败");
-      // 链接在前端拼：后端只知道自己的地址（那是 media 的前缀），不知道前端端口。
-      setShareInfo({ id, url: `${window.location.origin}/share/${r.slug}` });
-      patchThreadLocal(id, { shared: true });
-    } catch (err) {
-      toast(`分享失败：${err instanceof Error ? err.message : String(err)}`);
-    }
-  }
-
-  async function unshareRemote(id: string) {
-    try {
-      const r = await setThreadShare(id, false);
-      if (!r.ok) throw new Error(r.error || "取消分享失败");
-      patchThreadLocal(id, { shared: false });
-      setShareInfo(null);
-      toast("已取消分享，原来的链接立即失效");
-    } catch (err) {
-      toast(`取消分享失败：${err instanceof Error ? err.message : String(err)}`);
-    }
+  /**
+   * 侧栏点「分享」：**只负责把弹窗打开**。
+   *
+   * ⚠️ 申请链接、发布到画廊这些事全在 ShareDialog 里做（那一层才知道
+   *    threadId 和当前发布状态）。这里不再自己去调 setThreadShare ——
+   *    以前是"先建链接、再开弹窗"，于是分享这个动作有两个实现方，
+   *    以后再加一件事（就是这次的画廊）就得记得改两处。
+   */
+  function shareRemote(id: string) {
+    setShareTarget(id);
   }
 
   async function doDelete(ids: string[]) {
@@ -652,15 +692,37 @@ export function Workbench({ threadId }: { threadId?: string }) {
       list.push({
         messageId: m.id,
         version: m.version ?? 1,
-        // 标题优先用模型给的「整个讲解的标题」；它是**视频**的名字，
-        // 第一个分镜名（plan[0].title）只是其中一镜的名字，不适合代表整条片子。
-        title: m.videoTitle || m.plan?.[0]?.title || m.text.slice(0, 24) || "讲解视频",
+        // 整片标题的推导只此一份（见 types.ts 的 videoTitleOf）：
+        // 这里和对流里的内联卡片必须用同一个函数，否则同一段视频两处两个名字。
+        title: videoTitleOf(m),
         render: m.render,
         createdAt: m.createdAt,
       });
     }
     return list.reverse();
   }, [messages]);
+
+  /**
+   * 某条会话**最新一版**已出片的成片地址（找不到就返回 undefined）。
+   *
+   * 为什么不能直接用上面的 `artifacts`：它只覆盖**当前打开的那条**会话。
+   * 从侧栏给别人/别的会话点分享时，目标会话多半不是当前这条 ——
+   * 拿 artifacts 会把**另一条会话的视频**填进分享弹窗（下载下到错的东西、
+   * canPublish 也按错的会话判断），而且这种错看起来一切正常。
+   *
+   * ⚠️ 从 store 里按 id 取，而不是从 `messages`：`messages` 同样是当前会话的。
+   *    已经水合过的会话在 store 里就有消息；没水合的（从没打开过）取不到，
+   *    于是退回"只有链接、不能发布" —— 后端仍会在真正发布时校验收到的成片，
+   *    所以这里只是让按钮状态贴合实际，不承担正确性职责。
+   */
+  function latestFinalUrl(id: string): string | undefined {
+    const list = useStore.getState().messages[id] ?? [];
+    for (let i = list.length - 1; i >= 0; i -= 1) {
+      const url = list[i]?.render?.finalUrl;
+      if (url) return url;
+    }
+    return undefined;
+  }
 
   /** 内联卡片点「详情」：如果右栏收起了就先展开，再定位到该产物 */
   const openArtifact = (messageId: string) => {
@@ -696,14 +758,27 @@ export function Workbench({ threadId }: { threadId?: string }) {
     ? (threads.find((t) => t.id === threadId)?.title ?? "新的讲解")
     : "新对话";
 
+  /**
+   * 停止这一轮。
+   *
+   * ⚠️ 顺序是"**先告诉后端、再断本地读流**"：客户端断开已经不再等于取消
+   *    （刷新页面、网络抖动也会断开，那些情况任务要继续跑完并落盘），
+   *    取消只剩 `POST /api/cancel` 这一条路。只 abort 本地 fetch 是**静默失效**：
+   *    界面上转圈停了，服务端还在烧 token。
+   */
+  function stop() {
+    if (!threadId) return;
+    void cancelThread(threadId).catch(() => {
+      /* 后端没起/网络断了：本地照样停，不该把界面卡在"生成中" */
+    });
+    // 没有在跑的本地流时它是空操作（比如停在"后台那一轮"上）
+    abortStream(threadId);
+    setBgRunning(false);
+  }
+
   /** 空会话（含草稿）：输入框摆到正中间。抽出来只写一遍，两处布局都用它 */
   const composer = (compact: boolean) => (
-    <Composer
-      compact={compact}
-      busy={busy}
-      onSend={send}
-      onAbort={() => threadId && abortStream(threadId)}
-    />
+    <Composer compact={compact} busy={busy} onSend={send} onAbort={stop} />
   );
 
   return (
@@ -751,7 +826,7 @@ export function Workbench({ threadId }: { threadId?: string }) {
               ttlDays={ttlDays}
               onRename={(id, title) => void renameRemote(id, title)}
               onTogglePin={(id, pinned) => void togglePinRemote(id, pinned)}
-              onShare={(id) => void shareRemote(id)}
+              onShare={(id) => shareRemote(id)}
               onDelete={(ids) => setPendingDelete(ids)}
             />
           </div>
@@ -809,9 +884,37 @@ export function Workbench({ threadId }: { threadId?: string }) {
                 }}
                 onRevise={(id, index) => setReviseTarget({ messageId: id, index })}
                 onOpenArtifact={openArtifact}
-              />
-              {composer(false)}
-            </>
+                // 内联卡片的播放器也要能分享/发布（少了这两个，对话里的分享弹窗
+                // 就没有「发布到画廊」那一行，而右栏有 —— 用户实测到的正是这个不一致）
+                threadId={threadId}
+                published={Boolean(threads.find((t) => t.id === threadId)?.gallery)}
+                onPublishedChange={(on) =>
+                  threadId && patchThreadLocal(threadId, { gallery: on }                )
+                }
+                />
+                {/*
+                  后台还有一轮在跑（刷新前发起的那一轮）。
+                  它与"当前这一屏正在流式输出"是两回事，所以不放进 ChatStream：
+                  这里没有任何一条消息可以挂它。等它跑完，上面那段轮询会把结果拉回来。
+                */}
+                {bgRunning ? (
+                  <div className="px-4 pb-1 md:px-8">
+                    <div className="mx-auto flex max-w-[53rem] items-center gap-2 text-xs text-fg-muted">
+                      <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-accent" />
+                      <span>这一轮还在后台生成（刷新前发起的）—— 出结果会自动出现在这里。</span>
+                      <button
+                        type="button"
+                        onClick={stop}
+                        className="t-tx ml-auto shrink-0 rounded-control px-2 py-1 text-fg-muted hover:bg-surface-2 hover:text-accent"
+                      >
+                        停止
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
+                {composer(false)}
+                </>
+
           )}
         </main>
 
@@ -841,6 +944,11 @@ export function Workbench({ threadId }: { threadId?: string }) {
                 resetKey={threadId ?? "draft"}
                 activeId={artifactOpenId}
                 onActiveChange={setArtifactOpenId}
+                threadId={threadId}
+                published={Boolean(threads.find((t) => t.id === threadId)?.gallery)}
+                onPublishedChange={(on) =>
+                  threadId && patchThreadLocal(threadId, { gallery: on })
+                }
               />
             </div>
           </aside>
@@ -866,7 +974,7 @@ export function Workbench({ threadId }: { threadId?: string }) {
               ttlDays={ttlDays}
               onRename={(id, title) => void renameRemote(id, title)}
               onTogglePin={(id, pinned) => void togglePinRemote(id, pinned)}
-              onShare={(id) => void shareRemote(id)}
+              onShare={(id) => shareRemote(id)}
               onDelete={(ids) => setPendingDelete(ids)}
             />
           </SheetContent>
@@ -921,48 +1029,33 @@ export function Workbench({ threadId }: { threadId?: string }) {
         </DialogContent>
       </Dialog>
 
-      {/* 分享链接。文案只说"拿到链接的人能看什么"，别让人以为整段对话也公开了 */}
-      <Dialog open={Boolean(shareInfo)} onOpenChange={(v) => !v && setShareInfo(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>分享链接</DialogTitle>
-          </DialogHeader>
-          <p className="text-xs leading-relaxed text-fg-muted">
-            拿到链接的人可以打开看这条会话的
-            <strong className="mx-0.5 font-medium text-fg">成片和分段</strong>
-            ，不需要登录。对话内容不会出现在分享页上。
-          </p>
-          <div className="mt-3 flex items-center gap-2">
-            <Input
-              readOnly
-              value={shareInfo?.url ?? ""}
-              className="h-9 flex-1"
-              onFocus={(e) => e.currentTarget.select()}
-            />
-            <Button
-              size="sm"
-              onClick={() => {
-                void navigator.clipboard?.writeText(shareInfo?.url ?? "");
-                toast("链接已复制");
-              }}
-            >
-              复制
-            </Button>
-          </div>
-          <div className="mt-3 flex justify-end gap-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => shareInfo && void unshareRemote(shareInfo.id)}
-            >
-              取消分享
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => setShareInfo(null)}>
-              关闭
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      {/*
+        分享 / 发布到画廊。条件挂载（而不是 open prop）：关闭即销毁，
+        "已复制"状态和申请了一半的链接自然重置，不需要额外的 effect 去清。
+
+        ⚠️ 这里曾经是**内联**的一份分享弹窗（还自带一遍取消分享的逻辑）。
+        现在全站只有 ShareDialog 一份 —— 否则"发布到画廊"这个开关
+        就得在两个地方各实现一次，而漏掉的那个入口没人会报出来。
+      */}
+      {shareTarget ? (
+        <ShareDialog
+          onClose={() => setShareTarget(null)}
+          title={threads.find((t) => t.id === shareTarget)?.title ?? "讲解视频"}
+          /*
+           * ⚠️ 成片地址必须取**那条会话自己**的消息，不能用上面那个 `artifacts`
+           *    —— 它是**当前打开的那条**会话的产物。从侧栏点别的会话的分享时，
+           *    两者不是同一个，拿 artifacts 会给出**另一条会话的视频**：
+           *    "下载 MP4"下载到别的东西，而 canPublish 也会按错的会话判断。
+           *    这类"看着对、只是指向了别人"的错误很难被发现。
+           */
+          finalUrl={latestFinalUrl(shareTarget)}
+          threadId={shareTarget}
+          published={Boolean(threads.find((t) => t.id === shareTarget)?.gallery)}
+          canPublish={Boolean(latestFinalUrl(shareTarget))}
+          onSharedChange={(on) => patchThreadLocal(shareTarget, { shared: on })}
+          onPublishedChange={(on) => patchThreadLocal(shareTarget, { gallery: on })}
+        />
+      ) : null}
 
       {/* 整分镜替换：让模型重新输出一个完整分镜，而不是文本 patch */}
       <Dialog

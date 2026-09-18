@@ -1,18 +1,64 @@
 "use client";
 
-import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
+import { useCallback, useSyncExternalStore } from "react";
 
-/** SSR 安全的媒体查询。首帧一律 false，挂载后才有真值，避免 hydration 不一致。 */
+/*
+ * 媒体查询也走"**模块级缓存** + useSyncExternalStore"，与下面的 localStorage 同一套写法。
+ *
+ * ⚠️ 原来写的是 `useState(false) + useEffect`，首帧必然是 false，要等 effect 才有真值。
+ *    而**切换会话会让工作台整页重新挂载**（见 components/auth/RequireAuth.tsx 的说明），
+ *    于是每切一次会话，侧栏都会先按"窄屏"渲染一帧（收起、w-0），再带着宽度动画滑开 ——
+ *    用户看到的是"整个页面闪一下"。缓存之后，重新挂载的**第一帧**就是上次解析好的值，
+ *    这一跳没了。
+ *
+ * ⚠️ 首次加载仍然以 false 开局（`getServerSnapshot`）—— 与服务端渲染一致，
+ *    不会 hydration 不匹配；随后由订阅回调补上真值（只多一帧，只在首屏）。
+ */
+const mediaCache = new Map<string, boolean>();
+
+function readMedia(query: string): boolean {
+  const cached = mediaCache.get(query);
+  if (cached !== undefined) return cached;
+  let v = false;
+  try {
+    v = window.matchMedia(query).matches;
+  } catch {
+    /* 极老浏览器：按不匹配处理，与以前一样 */
+  }
+  mediaCache.set(query, v);
+  return v;
+}
+
+/** 服务端（以及客户端首帧）的快照：没有 window，只能给"不匹配"。 */
+const mediaServerSnapshot = () => false;
+
+/** SSR 安全的媒体查询。 */
 export function useMediaQuery(query: string) {
-  const [match, setMatch] = useState(false);
-  useEffect(() => {
-    const mql = window.matchMedia(query);
-    const onChange = () => setMatch(mql.matches);
-    onChange();
-    mql.addEventListener("change", onChange);
-    return () => mql.removeEventListener("change", onChange);
-  }, [query]);
-  return match;
+  const subscribe = useCallback(
+    (cb: () => void) => {
+      let mql: MediaQueryList;
+      try {
+        mql = window.matchMedia(query);
+      } catch {
+        return () => {};
+      }
+      const onChange = () => {
+        const next = mql.matches;
+        if (mediaCache.get(query) === next) return;   // 值没变就不惊动 React
+        mediaCache.set(query, next);
+        cb();
+      };
+      mql.addEventListener("change", onChange);
+      // ⚠️ 挂载时对一次真实值：缓存可能是"上一次挂载时"的，而窗口大小
+      //    在没人订阅的那段时间里可能变过。它发生在提交之后，且只在真的
+      //    不同时才触发重渲染，所以不会把首帧的稳定性又破坏掉。
+      onChange();
+      return () => mql.removeEventListener("change", onChange);
+    },
+    [query],
+  );
+
+  return useSyncExternalStore(subscribe, () => readMedia(query), mediaServerSnapshot);
 }
 
 /*

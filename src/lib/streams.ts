@@ -30,7 +30,13 @@ export function unregisterStream(threadId: string, ctrl: AbortController) {
   if (aborts.get(threadId) === ctrl) aborts.delete(threadId);
 }
 
-/** 用户点了"停止"。没在跑就什么都不做。 */
+/**
+ * 断掉本地这条读流。没在跑就什么都不做。
+ *
+ * ⚠️ 它**只是本地中断**，不是"停止生成"：服务端那边现在只认 `POST /api/cancel`
+ *    （客户端断开不再等于取消 —— 否则刷新页面就会把正在跑的那一轮掐掉）。
+ *    所以"停止"按钮必须两件事一起做，见 `Workbench.stop()`。
+ */
 export function abortStream(threadId: string) {
   aborts.get(threadId)?.abort();
   aborts.delete(threadId);

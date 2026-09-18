@@ -3,7 +3,8 @@
 import { create } from "zustand";
 
 import { DEMO_MODE } from "./api";
-import { SEED_THREADS } from "./mock-data";
+// 预置会话的内容从这里派生（见 seedMessages 的说明）—— 演示数据只此一份
+import { DERIVATIVE, SEED_THREADS } from "./mock-data";
 import type {
   Message,
   PlanStep,
@@ -14,6 +15,19 @@ import type {
   Thread,
 } from "./types";
 
+/**
+ * 预置会话（只有 `NEXT_PUBLIC_DEMO_MODE=true` 才会有）。
+ *
+ * ⚠️ 内容**全部从 `DERIVATIVE` 派生**，绝不在这里再抄一份。
+ *    原来是手抄的一份，而它与 `mock-data.ts` 各写各的 —— 实测已经漂移过：
+ *    预置会话指着 4 个分镜的旧片段（`derivative_s0~s3`），
+ *    而演示成片早就换成了 5 镜的 few-shot 示例，于是点开预置会话
+ *    看到的是**另一段视频**，而且分镜数对不上。两份数据迟早会分叉，这是必然。
+ *
+ * ⚠️ `durationSec` 用 `segmentDurations`（ffprobe 量的真实帧时长），
+ *    不是 `plan[].durationSec`（大纲设计值）：预置会话要和真实链路一致，
+ *    否则时间轴会照着一个骗人的数字铺（见 timeline.ts 的说明）。
+ */
 function seedMessages(): Record<string, Message[]> {
   const now = Date.now();
   return {
@@ -28,29 +42,25 @@ function seedMessages(): Record<string, Message[]> {
         id: "m_seed_asst",
         role: "assistant",
         version: 1,
-        text:
-          "导数描述的是「变化有多快」。对 y = x² 来说，函数在 x 处的导数就是曲线在那一点切线的斜率；代入求导公式可得 y′ = 2x。所以 x = -1 时斜率为 -2，x = 0 时为 0，x = 3 时为 6 —— 切线会跟着点一起转动。",
-        intent: "propose",
-        plan: [
-          { id: 1, title: "抛出问题", durationSec: 4.5, summary: "导数到底在量什么？先给一句直觉解释" },
-          { id: 2, title: "画出抛物线", durationSec: 9, summary: "在坐标系上画出 y = x²" },
-          { id: 3, title: "动点 + 切线", durationSec: 13, summary: "动点沿曲线滑动，切线实时跟随，右上角显示斜率" },
-          { id: 4, title: "归纳结论", durationSec: 6, summary: "y′ = 2x，斜率随 x 线性变化" },
-        ],
+        text: DERIVATIVE.brief,
+        // 整片标题：分享弹窗与播放器左上角都读它（原来是缺的，于是那些地方
+        // 只能退到第一个分镜的名字 —— 见 types.ts 的 videoTitleOf）
+        videoTitle: DERIVATIVE.title,
+        intent: DERIVATIVE.intent,
+        plan: DERIVATIVE.plan,
         planState: "confirmed",
         render: {
           status: "done",
-          step: 4,
-          total: 4,
-          // durationSec 用**真实帧时长**（ffprobe 量出来的），与大纲设计值故意不同：
-          // 预置会话要和真实链路一致，否则时间轴会照着一个骗人的数字铺。
-          scenes: [
-            { index: 0, title: "抛出问题", status: "done", url: "/demo/derivative_s0.mp4", durationSec: 5.199333 },
-            { index: 1, title: "画出抛物线", status: "done", url: "/demo/derivative_s1.mp4", durationSec: 14.333333 },
-            { index: 2, title: "动点 + 切线", status: "done", url: "/demo/derivative_s2.mp4", durationSec: 10.733008 },
-            { index: 3, title: "归纳结论", status: "done", url: "/demo/derivative_s3.mp4", durationSec: 6.666667 },
-          ],
-          finalUrl: "/demo/derivative_full.mp4",
+          step: DERIVATIVE.segments.length,
+          total: DERIVATIVE.plan.length,
+          scenes: DERIVATIVE.plan.map((p, i) => ({
+            index: i,
+            title: p.title,
+            status: "done" as const,
+            url: DERIVATIVE.segments[i],
+            durationSec: DERIVATIVE.segmentDurations[i],
+          })),
+          finalUrl: DERIVATIVE.final,
         },
         createdAt: now - 58_000,
       },

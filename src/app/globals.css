@@ -548,14 +548,32 @@
   to { opacity: 1; }
 }
 
+/*
+ * 弹窗入场。
+ *
+ * ⚠️ 这里**必须用 `translate` / `scale` 这两个独立属性，绝不能用 `transform`**。
+ *
+ * 原因：Tailwind v4 的 `-translate-x-1/2 -translate-y-1/2`（弹窗的居中）生成的
+ * 是 `translate: <x> <y>;`，而 `translate` 与 `transform` 是两个**独立**属性，
+ * 最终变换矩阵里是**叠加**关系而不是覆盖关系。所以原来写
+ * `transform: translate(-50%,-50%)` 时，居中的 -50% 与动画的 -50% 相加，
+ * 元素被推到约 -100%（左上角），动画结束 `transform` 回落到 none 才弹回中间 ——
+ * 这正是"点击后先在左上角出现、再移到中间"的成因。
+ *
+ * 顺带：`to` 的取值与那两个工具类算出来的完全一致（都是 -50% / 1），
+ * 所以动画收尾与基础样式严丝合缝，不会在结束的一瞬间跳一下。
+ * 那 8px 的下落差是刻意留的"浮起"手感，收在正位。
+ */
 @keyframes dialog-in {
   from {
     opacity: 0;
-    transform: translate(-50%, -48%) scale(0.97);
+    translate: -50% calc(-50% + 8px);
+    scale: 0.97;
   }
   to {
     opacity: 1;
-    transform: translate(-50%, -50%) scale(1);
+    translate: -50% -50%;
+    scale: 1;
   }
 }
 
@@ -569,25 +587,31 @@
   to { transform: translateX(0); }
 }
 
+/*
+ * 下面两个同样用 `scale` / `translate` 独立属性而**不是** `transform`，
+ * 理由与 dialog-in 完全一致（见上）：`transform` 会与元素上已存在的
+ * `translate` / `translate-*` 工具类叠加，互相干扰。
+ * 用独立属性后，无论宿主元素带不带 transform，动画都只影响自己那一维。
+ */
 @keyframes pop-in {
   from {
     opacity: 0;
-    transform: scale(0.97);
+    scale: 0.97;
   }
   to {
     opacity: 1;
-    transform: scale(1);
+    scale: 1;
   }
 }
 
 @keyframes rise-in {
   from {
     opacity: 0;
-    transform: translateY(6px);
+    translate: 0 6px;
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    translate: 0 0;
   }
 }
 

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { PanelLeft, PanelRight, Plus, Sparkles } from "lucide-react";
+import { Images, PanelLeft, PanelRight, Plus, Sparkles } from "lucide-react";
 
 import { UserMenuButton } from "@/components/auth/UserMenuButton";
 import { Button } from "@/components/ui/button";
@@ -64,6 +64,19 @@ export function TopBar({
       <span className="hidden h-5 w-px bg-border md:block" />
       <h1 className="hidden min-w-0 flex-1 truncate text-sm text-fg-muted md:block">{title}</h1>
       <div className="flex-1 md:hidden" />
+
+      {/*
+        作品画廊的入口。
+        放在**标题右侧、动作区左侧**：它是"到别处看看"的导航，不是这一页的动作，
+        所以不与「新建 / 主题 / 预览」那一簇混在一起（那些是当前页的操作）。
+        文案在窄屏收成一个图标 + 短词，宽度不够时优先保住动作区。
+      */}
+      <Button variant="ghost" size="sm" asChild className="shrink-0">
+        <Link href="/gallery">
+          <Images className="h-3.5 w-3.5" />
+          <span className="hidden lg:inline">画廊</span>
+        </Link>
+      </Button>
 
       <Button size="sm" variant="outline" onClick={onNewThread}>
         <Plus className="h-3.5 w-3.5" />

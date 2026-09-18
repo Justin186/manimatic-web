@@ -122,6 +122,24 @@ export type ImageAttachment = {
   bytes: number;
 };
 
+/**
+ * 气泡里要渲染的一张图。
+ *
+ * 与 `ImageAttachment` 的差别只有一处：**它可能只有 url、没有 dataUrl**。
+ *  · 刚发出去的那张 → 内存里的 dataUrl（本次会话内有效）；
+ *  · 刷新后从会话详情恢复的 → 后端图片地址（图已经落盘，见后端
+ *    `store.save_message_images`；以前只留 sha256 摘要，刷新后图就没了）。
+ *
+ * 两个字段都可选，所以 `ImageAttachment` 可以直接当它用（多出来的字段不影响）。
+ */
+export type MessageImage = {
+  id: string;
+  name: string;
+  bytes?: number;
+  dataUrl?: string;
+  url?: string;
+};
+
 export type PlanState = "none" | "pending" | "confirmed" | "discarded";
 
 export type Message = {
@@ -155,11 +173,20 @@ export type Message = {
   /** 思考开始时刻，用来算"已思考 N 秒" */
   thinkingStartedAt?: number;
   /**
-   * 这条用户消息带上的图片（**只在本轮内存里**，刷新后不再有，见 ImageAttachment）。
+   * 思考持续了多少秒 —— **后端算好落盘的那个值**。
+   *
+   * 只在"刷新/重开会话后恢复出来"的消息上有。这类消息没有 `thinkingStartedAt`，
+   * 拿 `createdAt` 去减会算成"几十万秒"（一条几天前的消息），所以宁可由后端
+   * 在生成结束时算一次。正在思考的消息仍走 `thinkingStartedAt` 的实时计时。
+   */
+  thinkingSec?: number;
+  /**
+   * 这条用户消息带上的图片。
    *
    * 放在 Message 上而不是别处：气泡渲染图片需要它，而气泡的唯一数据源就是 Message。
+   * 两种来源（内存里的 dataUrl / 后端落盘后的 url）见 MessageImage 的说明。
    */
-  images?: ImageAttachment[];
+  images?: MessageImage[];
 };
 
 export type Thread = {
@@ -171,7 +198,32 @@ export type Thread = {
   pinned?: boolean;
   /** 已开启分享（侧栏只据此显示一个标记，链接本身不在列表里） */
   shared?: boolean;
+  /**
+   * 已发布到画廊。
+   *
+   * ⚠️ 与 `shared` 并列但**互相独立**：分享是"给知道链接的人看"，
+   *    发布是"摆到公开的作品墙上"。一个会话可以只分享、只发布，或者两者都做 ——
+   *    所以这里必须是两个字段，不能拿 shared 顺带表示"公开了"。
+   */
+  gallery?: boolean;
 };
+
+/**
+ * 一条助手消息代表的那段视频的**名字**。
+ *
+ * ⚠️ 只此一份。曾经 `ArtifactPanel` 与 `ChatStream` 各写了一套推导，
+ *    而且两套**不一样**：右栏取的是 `videoTitle`（模型给的整个讲解的标题），
+ *    而对话里的内联卡片取的是 `plan[0].title`（**第一个分镜**的名字）。
+ *    于是同一段视频在右栏叫「扩展卡尔曼滤波：把非线性掰成线性」、
+ *    在分享弹窗里却叫「KF 的前提是线性」—— 后者听上去像另一段视频。
+ *    当时那两处的注释还都写着"与另一处同一套推导"，注释对不上代码。
+ *
+ * 优先级：模型的整片标题 > 第一个分镜名 > 正文前 24 字 > 兜底。
+ * 前三档是逐级降级：拿不到更好的，就退到一个"至少能认出来是哪条"的名字。
+ */
+export function videoTitleOf(m: Message): string {
+  return m.videoTitle || m.plan?.[0]?.title || m.text.slice(0, 24) || "讲解视频";
+}
 
 export const ROLE_LABEL: Record<Role, string> = {
   student: "学生",

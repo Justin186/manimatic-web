@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Home, LayoutDashboard, LogOut, User as UserIcon } from "lucide-react";
+import { Home, Images, LayoutDashboard, LogOut, User as UserIcon } from "lucide-react";
 
 import { Avatar } from "@/components/ui/fragments";
 import {
@@ -15,7 +15,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/popover";
 import { Badge } from "@/components/ui/primitives";
-import { displayName, fetchMe, logout, type AuthUser } from "@/lib/auth";
+import { cachedUser, displayName, fetchMe, logout, rememberUser, type AuthUser } from "@/lib/auth";
 import { USE_MOCK } from "@/lib/api";
 
 /**
@@ -30,22 +30,30 @@ import { USE_MOCK } from "@/lib/api";
  *   · 未登录时**不做任何跳转判断**，就是一个 `/login` 链接（带 `?next=` 由
  *     登录页自己在跳回来时处理）；已登录时直接进创作台。
  *   · 头像首字用显示名，拿不到身份时退回一个中性字面 —— 不编假名字出来。
+ *
+ * ⚠️ 身份走 `lib/auth.ts` 的**模块级缓存**：顶栏跟着工作台一起重新挂载
+ *    （切会话就会），不缓存的话每次都要重问一遍 `/api/auth/me`，
+ *    而 `ready` 之前这里渲染的是「登录」——于是切一次会话，右上角就从
+ *    「登录」跳回头像，这也是"整个页面闪一下"的一部分。
  */
 export function UserMenuButton({ size = "md" }: { size?: "sm" | "md" }) {
-  const [user, setUser] = useState<AuthUser | null>(null);
-  const [ready, setReady] = useState(false);
+  const [user, setUser] = useState<AuthUser | null>(() => cachedUser() ?? null);
+  const [ready, setReady] = useState(() => cachedUser() !== undefined);
   const pathname = usePathname();
 
   // 当前在哪 → 决定菜单里**不显示**哪一项（见下面的注释）
   const inWorkbench = pathname === "/app" || pathname.startsWith("/app/");
   const onSettings = pathname === "/settings";
   const onAdmin = pathname === "/admin";
+  const onGallery = pathname === "/gallery";
 
   useEffect(() => {
+    if (cachedUser() !== undefined) return;    // 已经问过（见上面的 ⚠️）
     let alive = true;
     void fetchMe()
       .then((u) => {
         if (!alive) return;
+        rememberUser(u);
         setUser(u);
         setReady(true);
       })
@@ -114,6 +122,20 @@ export function UserMenuButton({ size = "md" }: { size?: "sm" | "md" }) {
             <Link href="/app">
               <Home className="h-3.5 w-3.5" />
               进入创作台
+            </Link>
+          </DropdownMenuItem>
+        )}
+        {/*
+          作品画廊。**未登录也能进**（它是公开页），所以这一项不放在下面的登录态分支里 ——
+          但它会出现在登录后（这个菜单只在已登录时渲染）。
+          当前已在画廊时隐藏，理由与上面"进入创作台"相同：点了没反应的空操作项，
+          只会让人以为点错了。
+        */}
+        {!onGallery && (
+          <DropdownMenuItem asChild>
+            <Link href="/gallery">
+              <Images className="h-3.5 w-3.5" />
+              作品画廊
             </Link>
           </DropdownMenuItem>
         )}

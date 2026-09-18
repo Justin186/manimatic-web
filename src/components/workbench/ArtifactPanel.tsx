@@ -32,6 +32,15 @@ type Props = {
   /** 当前打开的产物详情 id（受控，由 Workbench 持有，内联卡片点「详情」要能定位过来） */
   activeId?: string | null;
   onActiveChange: (id: string | null) => void;
+  /**
+   * 会话 id + 画廊状态，透传给详情页的播放器（它的控件层有分享按钮）。
+   *
+   * ⚠️ 全部可选：右栏不传时分享弹窗退化成"只展示链接 + 下载"，
+   *    行为与改造前一致 —— 这样这个组件在别的上下文里复用也不会坏。
+   */
+  threadId?: string;
+  published?: boolean;
+  onPublishedChange?: (on: boolean) => void;
 };
 
 /** 相对时间：产物列表里时间只是辅助信息，不必精确到秒 */
@@ -62,7 +71,15 @@ function statusOf(render: RenderState): { label: string; tone: BadgeTone } {
  *
  * 现在一级只给缩略图列表（看得见"生成了哪些"），点进去才是二级详情（观看 + 分镜 + 信息）。
  */
-export function ArtifactPanel({ artifacts, resetKey, activeId, onActiveChange }: Props) {
+export function ArtifactPanel({
+  artifacts,
+  resetKey,
+  activeId,
+  onActiveChange,
+  threadId,
+  published,
+  onPublishedChange,
+}: Props) {
   const active = useMemo(
     () => artifacts.find((a) => a.messageId === activeId) ?? null,
     [artifacts, activeId],
@@ -91,7 +108,15 @@ export function ArtifactPanel({ artifacts, resetKey, activeId, onActiveChange }:
   }
 
   if (active) {
-    return <ArtifactDetail artifact={active} onBack={() => onActiveChange(null)} />;
+    return (
+      <ArtifactDetail
+        artifact={active}
+        onBack={() => onActiveChange(null)}
+        threadId={threadId}
+        published={published}
+        onPublishedChange={onPublishedChange}
+      />
+    );
   }
 
   return (
@@ -185,7 +210,19 @@ export function ArtifactPanel({ artifacts, resetKey, activeId, onActiveChange }:
 
 /* ---------------- 二级：单个产物的详情 ---------------- */
 
-function ArtifactDetail({ artifact, onBack }: { artifact: Artifact; onBack: () => void }) {
+function ArtifactDetail({
+  artifact,
+  onBack,
+  threadId,
+  published,
+  onPublishedChange,
+}: {
+  artifact: Artifact;
+  onBack: () => void;
+  threadId?: string;
+  published?: boolean;
+  onPublishedChange?: (on: boolean) => void;
+}) {
   const { render } = artifact;
   const timeline = useMemo(() => buildTimeline(render.scenes), [render.scenes]);
   const status = statusOf(render);
@@ -219,7 +256,17 @@ function ArtifactDetail({ artifact, onBack }: { artifact: Artifact; onBack: () =
         variant="panel"
         finalUrl={render.finalUrl}
         title={artifact.title}
+        /*
+         * 右栏打开**跟播**：它的正下方就是分镜列表，而列表点击会 seek。
+         * 标题跟着走，用户才看得出"刚才点的是哪一镜、现在在哪一镜"。
+         * 显示成「整片名 · 分镜名」，不是只显示分镜名 —— 否则整片名会被顶掉，
+         * 看起来像这段视频改了名字。
+         */
+        trackSceneTitle
         onPlayerReady={setPlayer}
+        threadId={threadId}
+        published={published}
+        onPublishedChange={onPublishedChange}
       />
 
       <div className="flex items-center gap-2 px-3 py-2">

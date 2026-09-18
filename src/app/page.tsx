@@ -3,6 +3,7 @@ import { ArrowRight, Check, Film, Layers, MessageSquareText, Sparkles } from "lu
 
 import { UserMenuButton } from "@/components/auth/UserMenuButton";
 import { Button } from "@/components/ui/button";
+import { DERIVATIVE } from "@/lib/mock-data";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/primitives";
 import { SectionHeading } from "@/components/ui/section";
@@ -38,13 +39,51 @@ const FEATURES = [
  */
 const EXAMPLES = ["导数与切线", "牛顿第二定律", "抛体运动", "二分查找"];
 
-/** 示例视频下的分镜清单：与 `/demo/derivative_full.mp4` 是同一段内容 */
-const DEMO_STEPS = [
-  "抛出问题：导数到底在量什么",
-  "画出 y = x² 的曲线",
-  "动点滑动，切线跟随，实时显示斜率",
-  "归纳：y′ = 2x",
+/**
+ * 示例区要用的几样东西，**全部从 `DERIVATIVE` 派生**。
+ *
+ * ⚠️ 这里的视频、分镜清单、时长，与**给模型看的 few-shot 示例 1**
+ *    （`examples/fewshot_derivative.json`）是同一份内容 —— 不是巧合：
+ *    首页那句"真实生成的一段"要经得起看，而且观众看到的这一段
+ *    正是模型每次写分镜前都要先看一遍的示范。
+ *
+ * ⚠️ 所以这三样**必须**是派生值而不是手抄的常量。原来是把分镜清单和"55 秒"
+ *    各手写一份，结果换质量档重渲（480p15 → 720p30，时长 55.5s → 56.9s）之后
+ *    页面上的数字就全成了假话 —— 而且没有任何机制会提醒你去改。
+ *    现在改演示只改 `mock-data.ts` 一处。
+ */
+const DEMO_VIDEO = DERIVATIVE.final;
+
+/**
+ * 首页这一栏显示的**精简概要**，与 `DERIVATIVE.plan` 一一对应（同样 5 条、同样顺序）。
+ *
+ * ⚠️ 为什么另写一组而不是直接用 `plan[].summary`：那一份是**给模型看的**示例原文，
+ *    每条 40~60 字，在这个 451px 宽的栏里要折成 2~3 行 ——
+ *    5 条下来能到 480px 高，而左边 16:9 的视频只有 381px 高（677px 宽时），
+ *    于是视频列底下空一大片。折行的行数还随屏宽变，压不住。
+ *
+ *    首页这里要的是"能一眼扫完的五步"，不是把示例原文照搬 ——
+ *    那 5 条原文留在 `mock-data.ts` 里（模型照读的那份一个字没动）。
+ *
+ * ⚠️ 每条压在 **31 个中文字以内**（`text-xs`、375px 行宽下正好一行）。
+ *    超过就会折行，高度立刻失控 —— 改文案时请数一下字数。
+ *    要更长的说明就该换个版面（比如整幅宽度铺开），而不是在这里硬塞。
+ */
+const DEMO_STEPS: { id: number; title: string; summary: string }[] = [
+  { id: 1, title: "要求的是什么", summary: "求 y = x² 在 x = 1 处的切线斜率" },
+  { id: 2, title: "先算平均变化率", summary: "再取一点连成割线，看 Δy/Δx 随 Δx 变小" },
+  { id: 3, title: "每一点都有自己的斜率", summary: "割线趋近切线，旁边同步放出 y′ = 2x" },
+  { id: 4, title: "正统做法：用定义算一遍", summary: "代入、展开、约分取极限，每步带注释" },
+  { id: 5, title: "常用求导公式", summary: "推广成一张公式表，都是同一个定义算出来的" },
 ];
+
+/**
+ * 时长文案。用 `segmentDurations`（ffprobe 量的**真实帧时长**）求和，
+ * 不是大纲的设计值 —— 两者故意不同，见 mock-data.ts 的说明。
+ */
+const DEMO_DURATION = `${Math.round(
+  DERIVATIVE.segmentDurations.reduce((a, b) => a + b, 0),
+)} 秒`;
 
 export default function LandingPage() {
   return (
@@ -60,6 +99,9 @@ export default function LandingPage() {
           </Link>
 
           <nav className="ml-auto flex items-center gap-1.5">
+            <Button variant="ghost" size="sm" asChild>
+              <Link href="/gallery">画廊</Link>
+            </Button>
             <Button variant="ghost" size="sm" asChild className="hidden sm:inline-flex">
               <Link href="/pricing">套餐</Link>
             </Button>
@@ -146,30 +188,77 @@ export default function LandingPage() {
           <SectionHeading
             eyebrow="Demo"
             title="真实生成的一段"
-            desc="题目：「讲一下导数是什么」—— 4 个分镜，动点沿曲线滑动，切线实时跟随。"
+            // 不写"4 个分镜"这类数字之外的形容：这一段的可信度来自它**能被看完**，
+            // 而不是来自文案。分镜数与时长直接对上下面那张表。
+            desc={`题目：「讲一下导数是什么」—— ${DEMO_STEPS.length} 个分镜、${DEMO_DURATION}，从几何直觉一路算到常用公式表。`}
           />
 
-          <div className="grid gap-6 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
+          {/*
+            ⚠️ 两栏能对齐，靠的是**大纲每条只占一行**（见 DEMO_STEPS 的字数约束），
+            不是靠调列宽比例。
+
+            之前试过两种极端，都不对：
+              · 默认 `stretch`：视频容器被拉成和大纲同高，16:9 撑不满，底下多一块黑条；
+              · 加 `items-start`：不拉伸了，但大纲比视频高，左下角空一大片；
+              · 视频改成独占整幅宽度：对齐是解决了，但视频**太大**，失去"一眼看到全貌"的分寸。
+            根子在于原来每条概要有 2~3 行，5 条必然高过视频。
+
+            现在两端都收住了：`items-start` 防止容器被拉伸，同时每条概要压到一行 ——
+            两栏自然高度就落在同一个量级（视频列 677px 宽 → 381px 高，
+            大纲列约 390px），底下不会再空。
+
+            ⚠️ 所以改概要时**别让它折行**，折了高度就会重新失衡（见 DEMO_STEPS 的注）。
+
+            ⚠️ 列宽 `1.75fr : 1fr` 也是配平出来的，不是随手定的比例：
+            视频列 653→677px（画面变大），大纲列 435→387px（文案更紧凑），
+            两栏高度差从 12px 收到 10px 以内。
+            大纲列收窄后**文字宽还剩 311px（约 25 个全角）**，
+            而最长的概要 20 个全角 —— 仍然一行放得下，这是这个比例还能站得住的边界。
+            再往窄调（`2fr`）就会开始挤掉余量：可容字数掉到 23，
+            文案稍改长一点就折行、高度立刻失衡。
+          */}
+          <div className="mt-6 grid items-start gap-6 lg:grid-cols-[minmax(0,1.75fr)_minmax(0,1fr)]">
             <div className="overflow-hidden rounded-card border border-border bg-video shadow-card">
               <video
-                src="/demo/derivative_full.mp4"
+                src={DEMO_VIDEO}
                 controls
                 muted
                 playsInline
                 preload="metadata"
+                // `aspect-video` + `w-full`：高度由宽度算出来，任何屏宽下都不裁画面
                 className="aspect-video w-full"
               />
             </div>
 
             <Card className="p-5" elevation="flat">
-              <p className="font-heading text-sm font-semibold text-fg">分镜大纲</p>
-              <ol className="mt-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <p className="font-heading text-sm font-semibold text-fg">分镜大纲</p>
+                <span className="tnum text-xs text-fg-subtle">{DEMO_STEPS.length} 步</span>
+              </div>
+              {/*
+                ⚠️ 行距 `space-y-2.5` 是**配平用的**，不是随手定的：
+                按 1152px 版心算（视频列 653px → 367px 高），
+                5 条各 38px + 4 个 10px 间距，加上标题与底部说明，
+                右栏落在 ~375px —— 与左边差 6px 左右，肉眼看不出。
+                改这个值会重新错开，要动就一起量一遍。
+                （这是按字号与间距算出来的，不是浏览器实测；换个屏宽都会有几十像素的出入，
+                  但两栏都在 370px 附近，不会出现之前那种几百像素的空洞。）
+              */}
+              <ol className="mt-4 space-y-2.5">
                 {DEMO_STEPS.map((s, i) => (
-                  <li key={s} className="flex gap-3">
+                  <li key={s.id} className="flex gap-3">
                     <span className="tnum mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-inner border border-border bg-surface-2 text-xs font-semibold text-fg-muted">
                       {i + 1}
                     </span>
-                    <span className="text-sm leading-relaxed text-fg-muted">{s}</span>
+                    <span className="min-w-0">
+                      <span className="block text-sm font-medium text-fg">{s.title}</span>
+                      {/* `truncate` 是**兜底**，不是排版手段：正常情况这一行放得下。
+                          它防的是"有人改长了文案、在窄屏上折行"把两栏高度再次拉歪 ——
+                          宁可截断，也不要悄悄变成一大片空白。 */}
+                      <span className="mt-0.5 block truncate text-xs text-fg-muted">
+                        {s.summary}
+                      </span>
+                    </span>
                   </li>
                 ))}
               </ol>

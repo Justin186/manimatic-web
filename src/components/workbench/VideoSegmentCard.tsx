@@ -20,6 +20,18 @@ type Props = {
   finalUrl?: string;
   /** 播放器左上角显示的标题；调用方应与右栏产物卡片用同一个推导 */
   title?: string;
+  /**
+   * 所属会话 id。
+   *
+   * ⚠️ 必须传：播放器的控件层里有**分享**按钮，而分享弹窗要在这个弹窗里
+   *    做「发布到画廊」（那是一条写接口，需要 thread_id + 归属校验）。
+   *    不传的话弹窗只能退化成"只给链接和下载" —— 于是同一段视频，
+   *    从右栏点分享有发布开关、从对话里点分享却没有。用户实测就是这么发现的。
+   */
+  threadId?: string;
+  /** 这条会话是否已发布到画廊（决定开关的初始态） */
+  published?: boolean;
+  onPublishedChange?: (on: boolean) => void;
 };
 
 /**
@@ -31,7 +43,17 @@ type Props = {
  * ⚠️ 内联卡片必须能让浏览器自动播放 —— 由 `VideoPlayer` 的 `inline` 形态负责静音，
  * 这不是 bug，是浏览器的 autoplay 策略。
  */
-export function VideoSegmentCard({ scenes, total, onOpenDetail, resetKey, finalUrl, title }: Props) {
+export function VideoSegmentCard({
+  scenes,
+  total,
+  onOpenDetail,
+  resetKey,
+  finalUrl,
+  title,
+  threadId,
+  published,
+  onPublishedChange,
+}: Props) {
   // 用与播放器同一份时间轴取就绪数，避免两处口径不一致
   const timeline = useMemo(() => buildTimeline(scenes), [scenes]);
   const ready = timeline.readyCount;
@@ -48,6 +70,10 @@ export function VideoSegmentCard({ scenes, total, onOpenDetail, resetKey, finalU
         finalUrl={finalUrl}
         title={title ?? "讲解视频"}
         onOpenDetail={() => onOpenDetail()}
+        // 分享弹窗要靠它做「发布到画廊」（见 Props.threadId 的说明）
+        threadId={threadId}
+        published={published}
+        onPublishedChange={onPublishedChange}
       />
 
       {/*

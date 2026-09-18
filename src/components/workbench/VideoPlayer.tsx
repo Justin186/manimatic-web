@@ -49,8 +49,26 @@ type Props = {
   variant?: PlayerVariant;
   /** 成片地址：只用于分享/下载，不参与播放（播放走分镜拼接，长度才和进度条一致） */
   finalUrl?: string;
-  /** 分享弹窗里展示的标题 */
+  /**
+   * 标题（分享弹窗与画面左上角都显示它）。
+   *
+   * ⚠️ 它应当是一个**能代表整条片子**的名字（模型给的整片标题），
+   *    而不是第一个分镜的名字 —— 见下面 `trackSceneTitle` 的说明。
+   */
   title?: string;
+  /**
+   * 画面左上角是否**跟随播放进度**换成当前分镜的名字（默认否，显示 `title`）。
+   *
+   * 为什么默认否：`title` 有三种来源（内联卡片 / 右栏 / 画廊），
+   * 它们的语义是"这段视频叫什么"，任何一处都不该因为播放到第 3 镜
+   * 就改口说自己叫别的。只有**明确要求跟播**的场合才打开。
+   *
+   * ⚠️ 打开时的用词必须是「整片名 · 当前分镜名」而不是只显示分镜名：
+   *    只显示分镜名会让这个标签在播放过程中被整段替换掉，
+   *    观众第一眼看到的是"KF 的前提是线性"这种**分镜**名，
+   *    会以为整段视频就叫这个名字（这正是用户报上来的现象）。
+   */
+  trackSceneTitle?: boolean;
   /**
    * 提供后，控件层右上角会出现「详情」按钮。
    * 点击画面**只做播放/暂停**，所以要打开右栏详情必须有个明确的入口，
@@ -62,6 +80,31 @@ type Props = {
   initialSceneIndex?: number | null;
   /** 外部想操作播放器时（如详情页的分镜列表要 seek）用它拿句柄 */
   onPlayerReady?: (player: TimelinePlayerApi) => void;
+  /**
+   * 所属会话 id + 画廊状态。**可选**，缺省时分享弹窗只展示链接与下载
+   * （见 ShareDialog 里对 threadId 的说明）。
+   *
+   * ⚠️ 为什么放在播放器上而不是"各调用方自己弹 ShareDialog"：
+   *    分享按钮在**播放器的控件层**里（画面右上角），四个调用方
+   *    （内联卡片 / 右栏详情 / 全屏 / 画廊卡片）共用同一套控件。
+   *    让每个调用方各自再实现一次分享，就是又要多三份"打开弹窗"的代码。
+   */
+  threadId?: string;
+  /** 已发布到画廊 */
+  published?: boolean;
+  /** 有没有成片可以发布（没有成片时分享弹窗里的开关会显示原因并禁用） */
+  canPublish?: boolean;
+  onPublishedChange?: (on: boolean) => void;
+  /**
+   * 要不要给分享按钮。默认给。
+   *
+   * ⚠️ 必须存在这个开关：**画廊里别人发布的卡片也复用这个播放器**，
+   *    而"分享/下载"只对作者有意义。让按钮留着，它会去申请一条
+   *    别人会话的分享链接 —— 后端有权属校验、会明确拒绝，
+   *    于是用户看到的是"分享失败"，而他根本不知道为什么"别人的视频不能分享"。
+   *    一个注定失败的按钮，比没有这个按钮更糟。
+   */
+  canShare?: boolean;
 };
 
 /**
@@ -87,6 +130,12 @@ export function VideoPlayer({
   className,
   initialSceneIndex,
   onPlayerReady,
+  threadId,
+  published,
+  canPublish,
+  onPublishedChange,
+  canShare = true,
+  trackSceneTitle = false,
 }: Props) {
   const stage0 = variant === "stage";
   /*
@@ -141,6 +190,19 @@ export function VideoPlayer({
   const canHover = useMediaQuery("(hover: hover)");
   const count = total ?? scenes.length;
   const expanded = fallbackFs;
+
+  /**
+   * 画面上那个标签显示什么。
+   *
+   * 默认就是 `title`（整片名），**不随播放进度变**：这个标签回答的是
+   * "这段视频是什么"，不是"现在讲到哪一镜"。第 2 档（跟播）留给明确需要
+   * 用画面标题指示当前分镜的场合，且用「整片名 · 分镜名」的复合形式，
+   * 而不是让分镜名把整片名整段顶掉（见 Props.trackSceneTitle 的说明）。
+   */
+  const sceneTitle = trackSceneTitle
+    ? (timeline.slots.find((s) => s.index === activeIndex)?.title ?? "")
+    : "";
+  const displayTitle = sceneTitle ? `${title} · ${sceneTitle}` : title;
 
   /* 全屏状态同步（用户可能按 Esc 或 F11 退出，不能只信自己那一次点击） */
   useEffect(() => {
@@ -344,8 +406,18 @@ export function VideoPlayer({
           chromeVisible ? "opacity-100" : "pointer-events-none opacity-0",
         )}
       >
-        <span className="pointer-events-none mr-auto max-w-[60%] truncate rounded-control bg-black/55 px-2 py-1 text-xs text-white/90 backdrop-blur">
-          {title}
+        {/*
+          ⚠️ `key={displayTitle}` 是必需的：这个 span 在跟播模式下文字会变，
+             而它的宽度是内容驱动的（max-w-[60%]）。不加 key 时浏览器会把
+             "文字变短"当成同一次布局的收缩，看起来像标签**缩了一下**；
+             加 key 让它作为新元素重新进入，观感是干净的一次替换。
+             不跟播时（默认）它是常量，key 恒定，没有任何额外代价。
+        */}
+        <span
+          key={displayTitle}
+          className="pointer-events-none mr-auto max-w-[60%] truncate rounded-control bg-black/55 px-2 py-1 text-xs text-white/90 backdrop-blur"
+        >
+          {displayTitle}
         </span>
         {onOpenDetail && (
           <button
@@ -358,15 +430,17 @@ export function VideoPlayer({
             <Info className="h-4 w-4" />
           </button>
         )}
-        <button
-          type="button"
-          onClick={() => setShareOpen(true)}
-          aria-label="分享"
-          title="分享 / 下载"
-          className="t-tx grid h-8 w-8 place-items-center rounded-control bg-black/55 text-white/90 backdrop-blur hover:bg-black/80"
-        >
-          <Share2 className="h-4 w-4" />
-        </button>
+        {canShare ? (
+          <button
+            type="button"
+            onClick={() => setShareOpen(true)}
+            aria-label="分享"
+            title="分享 / 下载"
+            className="t-tx grid h-8 w-8 place-items-center rounded-control bg-black/55 text-white/90 backdrop-blur hover:bg-black/80"
+          >
+            <Share2 className="h-4 w-4" />
+          </button>
+        ) : null}
       </div>
 
       {/* 底部控件层：进度条 + 时间 + 倍速 + 音量 + 全屏 */}
@@ -589,7 +663,15 @@ export function VideoPlayer({
 
       {/* 条件挂载：关闭即销毁，"已复制"状态和链接自然重置，不需要额外 effect */}
       {shareOpen && (
-        <ShareDialog onClose={() => setShareOpen(false)} title={title} finalUrl={finalUrl} />
+        <ShareDialog
+          onClose={() => setShareOpen(false)}
+          title={title}
+          finalUrl={finalUrl}
+          threadId={threadId}
+          published={published}
+          canPublish={canPublish ?? Boolean(finalUrl)}
+          onPublishedChange={onPublishedChange}
+        />
       )}
     </div>
   );

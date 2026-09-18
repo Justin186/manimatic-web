@@ -9,7 +9,7 @@ import { RenderProgress } from "./RenderProgress";
 import { StoryboardPlanCard } from "./StoryboardPlanCard";
 import { ThinkingIndicator } from "./ThinkingIndicator";
 import { VideoSegmentCard } from "./VideoSegmentCard";
-import type { Message } from "@/lib/types";
+import { videoTitleOf, type Message } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -23,6 +23,15 @@ type Props = {
   onOpenArtifact: (messageId: string) => void;
   busy?: boolean;
   retryingIndex?: number | null;
+  /**
+   * 当前会话 id + 画廊发布状态，透传给内联卡片的播放器。
+   *
+   * ⚠️ 不传的后果是"同一段视频，右栏点分享有发布开关、对话里点分享却没有" ——
+   *    因为分享弹窗的发布开关要求知道自己在哪条会话里。
+   */
+  threadId?: string;
+  published?: boolean;
+  onPublishedChange?: (on: boolean) => void;
 };
 
 export function ChatStream({
@@ -35,6 +44,9 @@ export function ChatStream({
   onOpenArtifact,
   busy,
   retryingIndex,
+  threadId,
+  published,
+  onPublishedChange,
 }: Props) {
   const endRef = useRef<HTMLDivElement | null>(null);
   const stick = useRef(true);
@@ -77,16 +89,18 @@ export function ChatStream({
 
                   ⚠️ 只贴图不打字时 m.text 是空串 —— 那种情况整个 <p> 不渲染，
                       否则气泡里会多出一行空白把图片顶下去。
-                  ⚠️ 刷新后图片会消失（后端不存图，见 ImageAttachment 的说明）。
-                      这不是 bug，是刻意的诚实降级；文字还在，所以气泡不会变空。
+                  ⚠️ 两种来源都要能渲染（见 MessageImage）：
+                      本轮刚发的走 dataUrl（内存），刷新后恢复的走后端落盘的 url。
+                      以前只存 sha256 摘要，于是"刷新一下图就没了" —— 现在图在磁盘上，
+                      会话详情会把地址带回来。
                 */}
                 {m.images && m.images.length > 0 && (
                   <div className="mb-2 flex flex-wrap gap-2">
                     {m.images.map((img) => (
-                      // eslint-disable-next-line @next/next/no-img-element -- data URL 无法走 next/image 优化
+                      // eslint-disable-next-line @next/next/no-img-element -- data URL / 后端图片接口都不走 next/image 优化
                       <img
                         key={img.id}
-                        src={img.dataUrl}
+                        src={img.dataUrl || img.url}
                         alt={img.name}
                         // 限高而不是限宽：题目照片多是竖的，限宽会让它撑得很高
                         className="max-h-48 rounded-control border border-solid-fg/15 object-contain"
@@ -171,10 +185,19 @@ export function ChatStream({
                     total={m.render.total}
                     resetKey={m.id}
                     finalUrl={m.render.finalUrl}
-                    // 与右栏产物卡片用同一套标题推导，避免同一段视频两处叫不同名字
-                    title={m.plan?.[0]?.title ?? m.text.slice(0, 24)}
+                    /*
+                     * 标题走 `videoTitleOf` —— 与右栏产物卡片**同一个函数**。
+                     * 这里原来写的是 `m.plan?.[0]?.title`，那是第一个**分镜**的名字，
+                     * 而右栏用的是整片标题：同一段视频在两处名字不同，
+                     * 分享弹窗里显示的还会是分镜名（看起来像另一段视频）。
+                     */
+                    title={videoTitleOf(m)}
                     // 点右上角「详情」→ 打开这条消息对应的产物详情
                     onOpenDetail={() => onOpenArtifact(m.id)}
+                    // 分享弹窗靠它做「发布到画廊」
+                    threadId={threadId}
+                    published={published}
+                    onPublishedChange={onPublishedChange}
                   />
                 )}
               </div>

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Download, Link2Off, Sparkles } from "lucide-react";
 
 import { mediaUrl } from "@/lib/api";
+import { DERIVATIVE, PYTHAGOREAN } from "@/lib/mock-data";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/primitives";
 import { EmptyState } from "@/components/ui/section";
@@ -47,15 +48,20 @@ const USE_MOCK = process.env.NEXT_PUBLIC_USE_MOCK !== "false";
 async function loadShare(slug: string): Promise<SharePayload> {
   if (USE_MOCK) {
     // Mock 模式：没有后端可问，用预渲成片顶替（与其它 Mock 数据的做法一致）
+    // ⚠️ 标题、分镜数、地址全部从 DERIVATIVE / PYTHAGOREAN 派生，不再手写 ——
+    //    手写的那份抄的是旧的四分镜演示，而视频早换成了 5 镜的 few-shot 示例，
+    //    于是分享页会显示"4 个分镜"配一段 5 镜的视频。
     const isDerivative = slug.includes("derivative");
+    const c = isDerivative ? DERIVATIVE : PYTHAGOREAN;
     return {
       ok: true,
-      title: isDerivative ? "导数就是切线的斜率" : "一段讲解动画",
-      subtitle: "4 个分镜 · 由 AI 生成分镜、逐段渲染成片",
+      title: c.title,
+      subtitle: `${c.plan.length} 个分镜 · 由 AI 生成分镜、逐段渲染成片`,
       segments: [],
       final: {
-        url: isDerivative ? "/demo/derivative_full.mp4" : "/demo/pythagorean_full.mp4",
-        durationSec: 0,
+        url: c.final,
+        // 用真实帧时长之和（与真实后端 `_share_payload` 的算法一致）
+        durationSec: Math.round(c.segmentDurations.reduce((a, b) => a + b, 0) * 10) / 10,
       },
     };
   }

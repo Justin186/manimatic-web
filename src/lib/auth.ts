@@ -29,6 +29,36 @@ export type AuthConfig = {
 };
 
 /**
+ * 已经问到的身份 —— **模块级缓存**。
+ *
+ * 为什么需要缓存：`RequireAuth`（页面守卫）与顶栏的 `UserMenuButton` 都要问一次身份，
+ * 而**切换会话会让工作台整页重新挂载**（`/app/t/A` → `/app/t/B`，见 RequireAuth 的说明）
+ * —— 每切一次就重问一次，于是：
+ *   · 守卫先渲染一帧"整页空占位"（顶栏、侧栏、对话一起消失再回来）；
+ *   · 顶栏的账号位先退化成「登录」再变回头像。
+ * 合起来就是用户报的"整个页面都会闪一下"。
+ *
+ * `undefined` = 还没问过；`null` = 问过了、没登录。
+ *
+ * ⚠️ 只缓存**成功**的结果：失败（后端没起 / 网络断）不写缓存，下次挂载还要再问。
+ * ⚠️ 身份变化的唯一入口是下面三个函数（login / register / logout），
+ *    它们必须同步更新这个缓存 —— 登录页用的是 `router.replace`（软跳转），
+ *    不清缓存的话"刚登录完却还是未登录态"，页面会白着。
+ *    会话在别处失效时由 401 兜住（`api.ts` 的 `onUnauthorized` 整页跳登录页）。
+ */
+let cachedMe: AuthUser | null | undefined;
+
+/** 上次问到的身份；`undefined` = 从没问过。 */
+export function cachedUser(): AuthUser | null | undefined {
+  return cachedMe;
+}
+
+/** 记下身份（只有上面那三个函数与守卫的取回成功分支该调用它）。 */
+export function rememberUser(u: AuthUser | null): void {
+  cachedMe = u;
+}
+
+/**
  * Mock 模式下的"演示账号"。
  *
  * ⚠️ 为什么要有它：`NEXT_PUBLIC_USE_MOCK=true` 时请求打的是前端自带的假路由，
@@ -69,6 +99,9 @@ export async function login(email: string, password: string): Promise<AuthUser> 
     email,
     password,
   });
+  // ⚠️ 必须同步缓存：登录页是 `router.replace` 软跳转，不写缓存的话
+  //    下一页的守卫会拿着"未登录"的旧缓存直接渲染空白（见 cachedMe 的说明）。
+  rememberUser(r.user);
   return r.user;
 }
 
@@ -80,12 +113,14 @@ export async function register(req: {
 }): Promise<AuthUser> {
   if (USE_MOCK) return MOCK_USER;
   const r = await json<{ ok: boolean; user: AuthUser }>("/api/auth/register", req);
+  rememberUser(r.user);
   return r.user;
 }
 
 export async function logout(): Promise<void> {
   if (USE_MOCK) return; // 演示账号没有真会话，登出只做界面跳转
   await json<{ ok: boolean }>("/api/auth/logout");
+  rememberUser(null);
 }
 
 /* ---------------- 账号管理（仅管理员） ----------------

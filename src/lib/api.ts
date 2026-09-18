@@ -101,6 +101,11 @@ function isConnectionFailure(err: unknown): boolean {
  * 刻意**不带接口路径**：这是给用户看的，" /api/chat " 对他没有任何信息量，
  * 反而会让这句话看起来像一条技术报错。核心是后半句 —— 告诉用户**去哪儿拿结果**。
  * 措辞对聊天与渲染两条链都成立，所以不传"大纲"还是"视频"。
+ *
+ * ⚠️ 后半句"任务可能仍在后台继续"**只在一种前提下成立**：客户端断开不等于取消
+ *    （见 api/pipeline.py 的 stream()）。2026-09-17~18 之间不是这样 —— 那时断开
+ *    就等于取消，这句话是假的；现在它又是真的了。改那条语义时**必须连这句一起改**，
+ *    否则就是"界面在骗用户去刷新等一个永远不会来的结果"。
  */
 function connectionLost(why: string): Error {
   return new Error(
@@ -488,6 +493,8 @@ export type ThreadSummary = {
   updatedAt: number;
   pinned?: boolean;
   shared?: boolean;
+  /** 已发布到画廊（侧栏据此显示一个标记，与 pinned / shared 并列） */
+  gallery?: boolean;
 };
 
 /** 会话里的一条消息，可直接并入 zustand 的 messages。 */
@@ -504,6 +511,22 @@ export type ThreadMessage = {
   planState?: "none" | "pending" | "confirmed";
   /** 由后端扫盘重建：每段的状态/时长/地址，以及整条成片 */
   render?: RenderState;
+  /**
+   * 这一轮用户发上来的题目图片（**只有文件名与字节数**，本体是磁盘上的文件）。
+   *
+   * 图片地址由前端拼（`fetchThreadDetail` 里拼好再交给组件）—— 与成片同一条约定：
+   * 地址是后端产出的，但"它是哪个源"只有这一层知道（同源前缀 / 转义）。
+   */
+  images?: { name: string; bytes?: number }[];
+  /**
+   * 这一轮的**思考原文**（后端落盘的）。没有这个键 = 当时没开思考流。
+   *
+   * ⚠️ 它只在生成**成功结束**时才落盘：被停止的那一轮什么都不会写，
+   *    所以"恢复出来没有思考"未必是丢了 —— 也可能是那一轮没跑完。
+   */
+  thinking?: string;
+  /** 思考持续秒数（后端算好落盘的，前端直接显示） */
+  thinkingSec?: number;
 };
 
 export type ThreadsResponse = {
@@ -517,23 +540,148 @@ export function fetchThreads() {
 }
 
 export function fetchThreadDetail(threadId: string) {
-  return json<{ thread_id: string; messages: ThreadMessage[] }>(
+  return json<{ thread_id: string; messages: ThreadMessage[]; running?: boolean }>(
     `/api/threads/${encodeURIComponent(threadId)}`,
   ).then((r) => ({
     ...r,
-    // 刷新后恢复出来的视频地址同样要过一遍 mediaUrl：
-    // 这条路径不经过 SSE，漏掉它就会出现"新渲的能放、刷新一下视频就没了"。
-    messages: r.messages.map((m) =>
-      m.render
+    // 这条会话后端还有任务在跑（刷新前发起的那种）。**客户端断开不等于取消**，
+    // 所以刷新后常常会碰上"界面只剩一句提问、后台其实还在生成" —— 界面靠这个字段
+    // 把它说出来，不然用户会以为这一轮死了（见 Workbench 里那条提示）。
+    running: Boolean(r.running),
+    // 先把要改造的两个字段摘出来再 `...rest`：直接 `...m` 之后再覆盖同名字段，
+    // TS 会把两次声明的类型并起来（最后赋值不上去），拆开写类型才是准的。
+    messages: r.messages.map(({ images, render, ...rest }) => ({
+      ...rest,
+      // 题目图片：后端只给文件名，地址在这里拼（同一条线程 + 同一条消息的 id 都在手上）。
+      // ⚠️ 两个 id 都要 encodeURIComponent：它们是前端生成的 id，理论上干净，
+      //    但"拼 URL"这件事只要有一处没转义，出问题的就是那个恰好带了特殊字符的会话。
+      ...(images?.length
         ? {
-            ...m,
+            images: images.map((img) => ({
+              id: `${rest.id}/${img.name}`,
+              name: img.name,
+              bytes: img.bytes,
+              url:
+                `${API_BASE}/api/threads/${encodeURIComponent(threadId)}` +
+                `/images/${encodeURIComponent(rest.id)}/${encodeURIComponent(img.name)}`,
+            })),
+          }
+        : null),
+      // 刷新后恢复出来的视频地址同样要过一遍 mediaUrl：
+      // 这条路径不经过 SSE，漏掉它就会出现"新渲的能放、刷新一下视频就没了"。
+      ...(render
+        ? {
             render: {
-              ...m.render,
-              finalUrl: m.render.finalUrl ? mediaUrl(m.render.finalUrl) : m.render.finalUrl,
-              scenes: m.render.scenes.map((s) => (s.url ? { ...s, url: mediaUrl(s.url) } : s)),
+              ...render,
+              finalUrl: render.finalUrl ? mediaUrl(render.finalUrl) : render.finalUrl,
+              scenes: render.scenes.map((s) => (s.url ? { ...s, url: mediaUrl(s.url) } : s)),
             },
           }
-        : m,
-    ),
+        : null),
+    })),
   }));
+}
+
+/**
+ * 停止这条会话正在跑的任务（对话生成 / 渲染全掐）。
+ *
+ * ⚠️ 停止按钮必须**先调它、再断本地读流**（见 Workbench 的 onAbort）。
+ *    只 abort 本地 fetch 是**静默失效**：界面上转圈停了、服务端还在烧 token ——
+ *    因为"客户端断开"已经不再等于"取消"了（刷新页面、网络抖动也会断开，
+ *    那些情况任务要照常跑完并落盘，见 api/pipeline.py 的 stream()）。
+ */
+export function cancelThread(threadId: string) {
+  return json<{ ok: boolean; cancelled?: number; error?: string }>("/api/cancel", {
+    thread_id: threadId,
+  });
+}
+
+/* ---------------- 画廊 ----------------
+ *
+ * 与分享的关系：画廊是分享的**超集**（同一条会话、同一份成片），但一个是
+ * "给知道链接的人看"，一个是"摆到公开作品墙上"。所以后端复用了
+ * `store.build_share_payload`，前端这里也只是多两个类型 + 三个请求。
+ *
+ * ⚠️ 所有从后端拿到的媒体地址都**必须在 api.ts 这一层过掉 mediaUrl()**
+ *    （与 fetchThreadDetail 同一约定）。后端拼的是 `http://localhost:8000/media/...`，
+ *    在局域网下那个 localhost 指访问者自己 —— 症状是"画廊封面全是白块"，
+ *    而控制台只会报一片 404。放在这里做，调用方就不会有"忘了转换"的机会。
+ */
+
+export type GalleryItem = {
+  threadId: string;
+  title: string;
+  /** 「N 个分镜」，与分享页同源 */
+  subtitle: string;
+  /** 成片地址（已换成同源前缀）；为空 = 视频已不可用，卡片要降级显示 */
+  videoUrl: string;
+  durationSec: number;
+  sceneCount: number;
+  /** 发布时间（毫秒），列表按它倒序 */
+  publishedAt: number;
+  /** 视频文件还在不在。false 时卡片保留但标记不可播放 */
+  playable: boolean;
+  /** 是不是当前登录用户发布的（未登录恒为 false） */
+  mine: boolean;
+  /** 作者显示名；取不到时是空串，UI 自己兜底 */
+  author: string;
+};
+
+/** 单条作品的全量数据（含分段），点开卡片时才取。 */
+export type GalleryDetail = {
+  threadId: string;
+  title: string;
+  subtitle: string;
+  segments: { index: number; title: string; url: string; durationSec: number }[];
+  final: { url: string; durationSec: number } | null;
+  publishedAt: number;
+  mine: boolean;
+  author: string;
+};
+
+export type GalleryScope = "all" | "mine";
+
+export async function fetchGallery(scope: GalleryScope = "all"): Promise<{
+  items: GalleryItem[];
+  skipped: number;
+}> {
+  const r = await json<{ ok: boolean; items: GalleryItem[]; skipped?: number }>(
+    `/api/gallery?scope=${scope}`,
+  );
+  return {
+    // ⚠️ playable 的判定用**转换后**的地址：后端把 localhost 的绝对地址交给我们，
+    //    它非空但在这里可能因为规则不匹配而原样留着 —— 转换前判定会漏掉这一档。
+    items: (r.items ?? []).map((it) => {
+      const videoUrl = mediaUrl(it.videoUrl);
+      return { ...it, videoUrl, playable: Boolean(videoUrl) };
+    }),
+    skipped: r.skipped ?? 0,
+  };
+}
+
+export async function fetchGalleryItem(threadId: string): Promise<GalleryDetail> {
+  const r = await json<{ ok: boolean; error?: string; item?: GalleryDetail }>(
+    `/api/gallery/${encodeURIComponent(threadId)}`,
+  );
+  if (!r.ok || !r.item) throw new ApiError(r.error || "这条作品打不开了", 200, "gallery_item");
+  return {
+    ...r.item,
+    segments: (r.item.segments ?? []).map((s) => ({ ...s, url: mediaUrl(s.url) })),
+    final: r.item.final ? { ...r.item.final, url: mediaUrl(r.item.final.url) } : null,
+  };
+}
+
+/**
+ * 发布到画廊 / 从画廊撤下。
+ *
+ * 返回 `publishedAt`（毫秒）而不是只回一个布尔：画廊按发布时间倒序，
+ * 本地要把新发布的那条插到最前面就得知道这个时间 —— 用它而不是 `Date.now()`，
+ * 是为了让本地顺序和服务端刷新后的顺序**一致**（两者差出几毫秒会造成
+ * "刚发布的排到了第二条"这种说不清的现象）。
+ */
+export function setThreadGallery(threadId: string, on: boolean) {
+  return json<{ ok: boolean; error?: string; published?: boolean; publishedAt?: number }>(
+    `/api/threads/${encodeURIComponent(threadId)}/gallery`,
+    { on },
+  );
 }
